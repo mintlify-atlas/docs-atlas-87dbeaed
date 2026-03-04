@@ -1,0 +1,160 @@
+---
+title: Get Current User
+description: Retrieve the authenticated user's profile information
+---
+
+## Endpoint
+
+```
+GET /api/me
+```
+
+<Note>This endpoint requires authentication via Laravel Sanctum token.</Note>
+
+## Description
+
+Returns the profile information of the currently authenticated user. This endpoint is useful for:
+- Verifying token validity
+- Loading user data on application startup
+- Refreshing user information after profile updates
+
+## Authentication
+
+This endpoint requires a valid Bearer token in the Authorization header.
+
+```bash
+Authorization: Bearer {token}
+```
+
+## Request
+
+No request body or parameters required.
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET http://localhost:8000/api/me \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Accept: application/json"
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8000/api/me', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/json'
+  }
+});
+
+const user = await response.json();
+console.log(user);
+```
+
+```python Python
+import requests
+
+url = "http://localhost:8000/api/me"
+headers = {
+    "Authorization": f"Bearer {token}",
+    "Accept": "application/json"
+}
+
+response = requests.get(url, headers=headers)
+user = response.json()
+print(user)
+```
+</CodeGroup>
+
+## Response
+
+### Success Response (200 OK)
+
+<ResponseField name="id_usuario" type="integer">
+  User's unique identifier
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  User's full name
+</ResponseField>
+
+<ResponseField name="correo" type="string">
+  User's email address
+</ResponseField>
+
+<ResponseField name="activo" type="string">
+  Account status ("1" for active, "0" for inactive)
+</ResponseField>
+
+<ResponseField name="foto_perfil" type="string | null">
+  Path to user's profile photo (relative to storage path)
+</ResponseField>
+
+### Example Success Response
+
+```json
+{
+  "id_usuario": 1,
+  "nombre": "Dr. Maria Garcia",
+  "correo": "maria@vitafem.com",
+  "activo": "1",
+  "foto_perfil": "avatars/abc123.jpg"
+}
+```
+
+## Error Responses
+
+### 401 Unauthorized
+
+Returned when the token is invalid, expired, or missing.
+
+```json
+{
+  "message": "Unauthenticated."
+}
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Token Validation" icon="shield-check">
+    Verify that a stored token is still valid before making other API calls
+  </Card>
+  <Card title="User Profile Display" icon="user-circle">
+    Load user information to display in application header or profile page
+  </Card>
+  <Card title="Session Management" icon="clock-rotate-left">
+    Check user session status and refresh user data periodically
+  </Card>
+  <Card title="Role-Based UI" icon="user-lock">
+    Determine user role to show/hide features based on permissions
+  </Card>
+</CardGroup>
+
+## Related Endpoints
+
+- [Register User](/api/auth/register) - Create a new user account
+- [Login](/api/auth/login) - Authenticate and get token
+- [Logout](/api/auth/logout) - Revoke current token
+- [Update Profile](/api/users/profile) - Modify user information
+
+## Implementation Notes
+
+<Note>
+The endpoint is defined in `routes/api.php` line 56 and handled by `AuthController::me()`.
+</Note>
+
+<Warning>
+Password and sensitive fields are automatically hidden by the model's `$hidden` property. Never expose passwords in API responses.
+</Warning>
+
+### Oracle Field Mapping
+
+The API returns data from the `USUARIOS` table with Oracle's uppercase column names mapped to lowercase in the response:
+
+- `ID_USUARIO` → `id_usuario`
+- `NOMBRE` → `nombre`
+- `CORREO` → `correo`
+- `ACTIVO` → `activo`
+- `FOTO_PERFIL` → `foto_perfil`
