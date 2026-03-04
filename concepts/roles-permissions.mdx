@@ -1,0 +1,604 @@
+---
+title: 'Roles & Permissions'
+description: 'Role-based access control (RBAC) system in VitaFem Backend API'
+icon: 'user-shield'
+---
+
+## Overview
+
+VitaFem implements a simple but effective **role-based access control (RBAC)** system to manage user permissions across the healthcare platform. The system distinguishes between three primary user types with distinct capabilities.
+
+<CardGroup cols={3}>
+  <Card title="Admin" icon="user-crown" color="#ea5a0c">
+    Full system access and management
+  </Card>
+  <Card title="Doctor" icon="user-doctor" color="#0285c7">
+    Medical operations and patient care
+  </Card>
+  <Card title="Patient" icon="user" color="#16a34a">
+    Personal health management
+  </Card>
+</CardGroup>
+
+## Role System Architecture
+
+### Role Storage
+
+User roles are stored as a simple string field in the `USUARIOS` table:
+
+```sql Oracle Schema
+CREATE TABLE USUARIOS (
+    ID_USUARIO NUMBER PRIMARY KEY,
+    NOMBRE VARCHAR2(255),
+    CORREO VARCHAR2(100) UNIQUE,
+    PASSWORD VARCHAR2(255),
+    ROLE VARCHAR2(20),  -- 'admin', 'doctor', 'patient'
+    ACTIVO CHAR(1) DEFAULT '1',
+    FOTO_PERFIL VARCHAR2(500)
+);
+```
+
+<Note>
+  While the codebase shows a `role` field in routes and seeders, the User model in `app/Models/User.php` does not explicitly define this field. You may need to add `'ROLE'` to the `$fillable` array to use role-based features.
+</Note>
+
+### User Model Extension
+
+To enable role support, update the User model:
+
+```php app/Models/User.php
+class User extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable;
+
+    protected $table = 'USUARIOS';
+    protected $primaryKey = 'ID_USUARIO';
+    public $sequence = 'SEQ_USUARIOS';
+    public $timestamps = false;
+
+    protected $fillable = [
+        'NOMBRE',
+        'CORREO',
+        'PASSWORD',
+        'ROLE',        // Add this field
+        'ACTIVO',
+        'FOTO_PERFIL',
+    ];
+
+    protected $hidden = [
+        'PASSWORD',
+    ];
+
+    // Helper method to check roles
+    public function isAdmin()
+    {
+        return $this->ROLE === 'admin';
+    }
+
+    public function isDoctor()
+    {
+        return $this->ROLE === 'doctor';
+    }
+
+    public function isPatient()
+    {
+        return $this->ROLE === 'patient';
+    }
+}
+```
+
+## Role Middleware
+
+The `RoleMiddleware` enforces role-based access control on protected routes.
+
+### Middleware Implementation
+
+```php app/Http/Middleware/RoleMiddleware.php
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class RoleMiddleware
+{
+    /**
+     * Handle an incoming request.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \Closure  $next
+     * @param  string  $role  The required role
+     * @return mixed
+     */
+    public function handle(Request $request, Closure $next, $role)
+    {
+        $user = $request->user();
+
+        // Check if user is authenticated and has the required role
+        if (!$user || $user->role !== $role) {
+            return response()->json([
+                'message' => 'Acceso denegado. No tienes permisos de administrador.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        return $next($request);
+    }
+}
+```
+
+### Middleware Registration
+
+The middleware is registered in `app/Http/Kernel.php`:
+
+```php app/Http/Kernel.php
+protected $routeMiddleware = [
+    'auth' => \App\Http\Middleware\Authenticate::class,
+    'role' => \App\Http\Middleware\RoleMiddleware::class,  // Role-based access
+    // ... other middleware
+];
+```
+
+## Role Definitions
+
+### 1. Admin Role
+
+**Role Value**: `admin`
+
+**Capabilities:**
+- Manage all system users
+- View all appointments across the system
+- Create and manage doctor profiles
+- Access administrative dashboards
+- Modify appointment statuses
+- System configuration
+
+**Use Cases:**
+- System administrators
+- Clinic managers
+- IT support staff
+
+<Accordion title="Admin-Specific Routes">
+```php routes/api.php
+Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    // User management
+    Route::post('/admin/users', [UserController::class, 'store']);
+    Route::put('/users/{id}', [UserController::class, 'update']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+    // Appointment management
+    Route::get('/admin/citas', [CitaController::class, 'getAllCitas']);
+    Route::put('/admin/citas/{id}/estado', [CitaController::class, 'updateEstado']);
+
+    // Doctor management
+    Route::post('/admin/medicos', [CitaController::class, 'crearMedico']);
+});
+```
+</Accordion>
+
+### 2. Doctor Role
+
+**Role Value**: `doctor`
+
+**Capabilities:**
+- View assigned appointments
+- Access patient medical records
+- Create and update consultations
+- Write prescriptions
+- Manage personal schedule
+- Update appointment notes
+
+**Use Cases:**
+- Physicians
+- Medical specialists
+- Healthcare providers
+
+<Accordion title="Doctor-Specific Routes">
+```php routes/api.php
+Route::middleware(['auth:sanctum', 'role:doctor'])->group(function () {
+    // View doctor's appointments
+    Route::get('/medico/{id_usuario}/citas', [CitaController::class, 'getCitasMedico']);
+
+    // Mark appointment as attended
+    Route::put('/medico/citas/{id}/atender', [CitaController::class, 'atenderCita']);
+
+    // View and update schedule
+    Route::get('/medico/{id_usuario}/horarios', [CitaController::class, 'getHorarios']);
+    Route::put('/medico/{id_usuario}/horarios', [CitaController::class, 'updateHorarios']);
+
+    // Access patient history
+    Route::get('/medico/paciente/{id_paciente}/historial', 
+        [CitaController::class, 'getHistorialPaciente']);
+});
+```
+</Accordion>
+
+### 3. Patient Role
+
+**Role Value**: `patient` (or `user`)
+
+**Capabilities:**
+- Book appointments with doctors
+- View personal appointments
+- Update personal profile
+- View medical history
+- Access consultation records
+- Manage personal information
+
+**Use Cases:**
+- Registered patients
+- Healthcare consumers
+- Self-service users
+
+<Accordion title="Patient-Specific Routes">
+```php routes/api.php
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Patient profile
+    Route::post('/pacientes/perfil', [PacienteController::class, 'updateProfile']);
+    Route::get('/pacientes/perfil/{id_usuario}', [PacienteController::class, 'getProfile']);
+
+    // Appointment management
+    Route::post('/citas', [CitaController::class, 'store']);
+    Route::get('/pacientes/{id_usuario}/citas', [CitaController::class, 'getMisCitas']);
+
+    // Profile updates
+    Route::post('/update-profile/{id}', [PerfilController::class, 'update']);
+});
+```
+</Accordion>
+
+## Applying Role-Based Protection
+
+### Method 1: Middleware on Routes
+
+Apply role middleware directly to routes:
+
+```php
+// Single role requirement
+Route::middleware(['auth:sanctum', 'role:admin'])
+    ->post('/admin/users', [UserController::class, 'store']);
+
+// Route group with role
+Route::middleware(['auth:sanctum', 'role:doctor'])->group(function () {
+    Route::get('/medico/citas', [CitaController::class, 'getCitasMedico']);
+    Route::put('/medico/citas/{id}/atender', [CitaController::class, 'atenderCita']);
+});
+```
+
+### Method 2: Controller-Level Authorization
+
+Check roles within controller methods:
+
+```php app/Http/Controllers/CitaController.php
+public function getAllCitas(Request $request)
+{
+    $user = $request->user();
+
+    // Manual role check
+    if ($user->ROLE !== 'admin') {
+        return response()->json([
+            'message' => 'Acceso denegado'
+        ], 403);
+    }
+
+    // Proceed with admin-only logic
+    $citas = Cita::with(['medico', 'paciente'])->get();
+    return response()->json($citas);
+}
+```
+
+### Method 3: Policy-Based Authorization
+
+Create Laravel policies for fine-grained control:
+
+```php app/Policies/CitaPolicy.php
+namespace App\Policies;
+
+use App\Models\User;
+use App\Models\Cita;
+
+class CitaPolicy
+{
+    public function viewAny(User $user)
+    {
+        return $user->ROLE === 'admin';
+    }
+
+    public function view(User $user, Cita $cita)
+    {
+        // Admins can view all
+        if ($user->ROLE === 'admin') {
+            return true;
+        }
+
+        // Doctors can view their appointments
+        if ($user->ROLE === 'doctor') {
+            $medico = $user->medico;
+            return $medico && $cita->ID_MEDICO === $medico->ID_MEDICO;
+        }
+
+        // Patients can view their own appointments
+        $paciente = $user->paciente;
+        return $paciente && $cita->ID_PACIENTE === $paciente->ID_PACIENTE;
+    }
+
+    public function update(User $user, Cita $cita)
+    {
+        return $user->ROLE === 'admin' || 
+               ($user->ROLE === 'doctor' && 
+                $cita->ID_MEDICO === $user->medico->ID_MEDICO);
+    }
+}
+```
+
+Register the policy:
+
+```php app/Providers/AuthServiceProvider.php
+protected $policies = [
+    Cita::class => CitaPolicy::class,
+];
+```
+
+Use in controllers:
+
+```php
+public function show(Request $request, $id)
+{
+    $cita = Cita::findOrFail($id);
+
+    // Check policy
+    $this->authorize('view', $cita);
+
+    return response()->json($cita);
+}
+```
+
+## Default Role Assignment
+
+### Registration with Default Role
+
+```php app/Http/Controllers/AuthController.php
+public function register(Request $request)
+{
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:100|unique:USUARIOS,CORREO',
+        'password' => 'required|string|min:6',
+    ]);
+
+    $user = new User();
+    $user->NOMBRE = $request->name;
+    $user->CORREO = $request->email;
+    $user->PASSWORD = Hash::make($request->password);
+    $user->ROLE = 'patient';  // Default role
+    $user->ACTIVO = '1';
+    $user->save();
+
+    $token = $user->createToken('authToken')->plainTextToken;
+
+    return response()->json([
+        'message' => 'Usuario registrado',
+        'user' => $user,
+        'token' => $token
+    ], 201);
+}
+```
+
+### Social Login Role Assignment
+
+```php routes/api.php
+Route::get('/auth/{provider}/callback', function ($provider) {
+    $socialUser = Socialite::driver($provider)->stateless()->user();
+    
+    $user = User::updateOrCreate(
+        ['CORREO' => $socialUser->getEmail()],
+        [
+            'NOMBRE' => $socialUser->getName(),
+            'CORREO' => $socialUser->getEmail(),
+            'PASSWORD' => bcrypt(str()->random(16)),
+            'ROLE' => 'patient'  // Social logins default to patient
+        ]
+    );
+    
+    $token = $user->createToken('authToken')->plainTextToken;
+    return redirect("https://app.vitafem.com/login-success?token=$token");
+});
+```
+
+## Admin User Seeding
+
+Create an admin user via database seeder:
+
+```php database/seeders/AdminUserSeeder.php
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
+
+class AdminUserSeeder extends Seeder
+{
+    public function run(): void
+    {
+        if (!User::where('CORREO', 'admin@vitafem.com')->exists()) {
+            User::create([
+                'NOMBRE' => 'Administrador',
+                'CORREO' => 'admin@vitafem.com',
+                'PASSWORD' => Hash::make('admin123'),
+                'ROLE' => 'admin',
+                'ACTIVO' => '1'
+            ]);
+        }
+    }
+}
+```
+
+Run the seeder:
+
+```bash
+php artisan db:seed --class=AdminUserSeeder
+```
+
+## Role-Based Response Filtering
+
+Customize API responses based on user role:
+
+```php
+public function getCitas(Request $request)
+{
+    $user = $request->user();
+    $query = Cita::with(['medico.usuario', 'paciente']);
+
+    // Filter based on role
+    switch ($user->ROLE) {
+        case 'admin':
+            // Admins see all appointments
+            break;
+
+        case 'doctor':
+            // Doctors see only their appointments
+            $medico = $user->medico;
+            $query->where('ID_MEDICO', $medico->ID_MEDICO);
+            break;
+
+        case 'patient':
+            // Patients see only their appointments
+            $paciente = $user->paciente;
+            $query->where('ID_PACIENTE', $paciente->ID_PACIENTE);
+            break;
+
+        default:
+            return response()->json(['message' => 'Rol no reconocido'], 403);
+    }
+
+    $citas = $query->orderBy('FECHA_HORA', 'desc')->get();
+    return response()->json($citas);
+}
+```
+
+## Permission Matrix
+
+| Feature | Admin | Doctor | Patient |
+|---------|:-----:|:------:|:-------:|
+| View all appointments | ✅ | ❌ | ❌ |
+| View own appointments | ✅ | ✅ | ✅ |
+| Create appointments | ✅ | ✅ | ✅ |
+| Cancel any appointment | ✅ | ❌ | ❌ |
+| Cancel own appointment | ✅ | ✅ | ✅ |
+| Create doctor profile | ✅ | ❌ | ❌ |
+| Update doctor schedule | ✅ | ✅ | ❌ |
+| Write consultations | ✅ | ✅ | ❌ |
+| Write prescriptions | ✅ | ✅ | ❌ |
+| View patient history | ✅ | ✅ (assigned) | ❌ |
+| Update own profile | ✅ | ✅ | ✅ |
+| Manage users | ✅ | ❌ | ❌ |
+| System configuration | ✅ | ❌ | ❌ |
+
+## Error Responses
+
+Role middleware returns consistent error responses:
+
+```json Unauthorized (401)
+{
+  "message": "Unauthenticated."
+}
+```
+
+```json Forbidden (403)
+{
+  "message": "Acceso denegado. No tienes permisos de administrador."
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Always Authenticate First" icon="lock">
+    Apply `auth:sanctum` middleware before `role` middleware
+  </Card>
+  <Card title="Use Route Groups" icon="layer-group">
+    Group routes by role for cleaner organization
+  </Card>
+  <Card title="Validate Role on Assignment" icon="check">
+    Only allow valid role values: 'admin', 'doctor', 'patient'
+  </Card>
+  <Card title="Log Role Changes" icon="file-lines">
+    Track role modifications for security auditing
+  </Card>
+</CardGroup>
+
+## Security Considerations
+
+<Warning>
+  **Important Security Notes:**
+  - Never expose role assignment endpoints publicly
+  - Only admins should be able to change user roles
+  - Validate role values against a whitelist
+  - Log all role changes for audit trails
+  - Use HTTPS in production to protect tokens
+</Warning>
+
+```php Secure Role Update Example
+public function updateRole(Request $request, $userId)
+{
+    // Only admins can change roles
+    if ($request->user()->ROLE !== 'admin') {
+        return response()->json(['message' => 'Acceso denegado'], 403);
+    }
+
+    $request->validate([
+        'role' => 'required|in:admin,doctor,patient'
+    ]);
+
+    $user = User::findOrFail($userId);
+    
+    // Log the change
+    Log::info('Role changed', [
+        'admin_id' => $request->user()->ID_USUARIO,
+        'target_user_id' => $userId,
+        'old_role' => $user->ROLE,
+        'new_role' => $request->role
+    ]);
+
+    $user->ROLE = $request->role;
+    $user->save();
+
+    return response()->json([
+        'message' => 'Rol actualizado',
+        'user' => $user
+    ]);
+}
+```
+
+## Testing Role-Based Access
+
+```php tests/Feature/RoleMiddlewareTest.php
+use Tests\TestCase;
+use App\Models\User;
+
+class RoleMiddlewareTest extends TestCase
+{
+    public function test_admin_can_access_admin_routes()
+    {
+        $admin = User::factory()->create(['ROLE' => 'admin']);
+
+        $response = $this->actingAs($admin)
+            ->getJson('/api/admin/citas');
+
+        $response->assertStatus(200);
+    }
+
+    public function test_patient_cannot_access_admin_routes()
+    {
+        $patient = User::factory()->create(['ROLE' => 'patient']);
+
+        $response = $this->actingAs($patient)
+            ->getJson('/api/admin/citas');
+
+        $response->assertStatus(403);
+    }
+}
+```
+
+<Info>
+  For more information on the overall system architecture, see [Architecture](/concepts/architecture). For database schema details, see [Database Schema](/concepts/database).
+</Info>

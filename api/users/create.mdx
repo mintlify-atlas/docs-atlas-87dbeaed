@@ -1,0 +1,144 @@
+---
+title: "Create User"
+api: "POST /api/admin/users"
+description: "Create a new user in the system"
+---
+
+## Authentication
+
+This endpoint requires authentication using Laravel Sanctum. Include the bearer token in the Authorization header.
+
+```bash
+Authorization: Bearer {token}
+```
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  Full name of the user (maximum 255 characters)
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address (must be unique in the system)
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Password (minimum 6 characters)
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  User role: user, partner, or admin
+</ParamField>
+
+<ParamField body="partner_type" type="string" optional>
+  Type of partner (e.g., veterinaria). Required when role is 'partner'.
+</ParamField>
+
+<ParamField body="phone" type="string" optional>
+  Phone number
+</ParamField>
+
+<ParamField body="address" type="string" optional>
+  Physical address
+</ParamField>
+
+<ParamField body="latitude" type="number" optional>
+  Geographic latitude coordinate
+</ParamField>
+
+<ParamField body="longitude" type="number" optional>
+  Geographic longitude coordinate
+</ParamField>
+
+## Response
+
+Returns the newly created user object and a success message.
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The created user object
+  
+  <ResponseField name="id" type="integer">
+    Unique identifier for the user
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Full name of the user
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    Email address
+  </ResponseField>
+  
+  <ResponseField name="role" type="string">
+    User role
+  </ResponseField>
+  
+  <ResponseField name="partner_type" type="string">
+    Type of partner (if applicable)
+  </ResponseField>
+  
+  <ResponseField name="phone" type="string">
+    Phone number
+  </ResponseField>
+  
+  <ResponseField name="address" type="string">
+    Physical address
+  </ResponseField>
+  
+  <ResponseField name="latitude" type="number">
+    Geographic latitude coordinate
+  </ResponseField>
+  
+  <ResponseField name="longitude" type="number">
+    Geographic longitude coordinate
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://api.vitafem.com/api/admin/users \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Veterinaria San José",
+    "email": "info@vetsanjose.com",
+    "password": "secure123",
+    "role": "partner",
+    "partner_type": "veterinaria",
+    "phone": "+1234567890",
+    "address": "Calle Principal 123",
+    "latitude": 9.9281,
+    "longitude": -84.0907
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "message": "Creado exitosamente",
+  "user": {
+    "id": 1,
+    "name": "Veterinaria San José",
+    "email": "info@vetsanjose.com",
+    "role": "partner",
+    "partner_type": "veterinaria",
+    "phone": "+1234567890",
+    "address": "Calle Principal 123",
+    "latitude": 9.9281,
+    "longitude": -84.0907
+  }
+}
+```
+
+## Notes
+
+- Password will be automatically hashed before storage
+- Email must be unique in the system
+- This endpoint is typically used for creating veterinary clinic accounts

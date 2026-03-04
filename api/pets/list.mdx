@@ -1,0 +1,87 @@
+---
+title: "List Pets"
+api: "GET /api/pets"
+description: "Retrieve all pets belonging to the authenticated user"
+---
+
+## Authentication
+
+This endpoint requires authentication using Laravel Sanctum. Include the bearer token in the Authorization header.
+
+```bash
+Authorization: Bearer {token}
+```
+
+## Response
+
+Returns an array of pet objects with their related appointments and medical history.
+
+<ResponseField name="pets" type="array">
+  Array of pet objects
+  
+  <ResponseField name="id" type="integer">
+    Unique identifier for the pet
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Name of the pet
+  </ResponseField>
+  
+  <ResponseField name="owner_name" type="string">
+    Name of the pet's owner
+  </ResponseField>
+  
+  <ResponseField name="age" type="integer">
+    Age of the pet in years
+  </ResponseField>
+  
+  <ResponseField name="breed" type="string">
+    Breed of the pet
+  </ResponseField>
+  
+  <ResponseField name="photo_url" type="string">
+    URL to the pet's photo
+  </ResponseField>
+  
+  <ResponseField name="user_id" type="integer">
+    ID of the user who owns this pet
+  </ResponseField>
+  
+  <ResponseField name="nextAppointment" type="object">
+    Next scheduled appointment for this pet
+  </ResponseField>
+  
+  <ResponseField name="medicalHistory" type="array">
+    Medical history records for this pet
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X GET https://api.vitafem.com/api/pets \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json"
+```
+
+## Example Response
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Max",
+    "owner_name": "John Doe",
+    "age": 3,
+    "breed": "Golden Retriever",
+    "photo_url": "https://api.vitafem.com/storage/pets/photo.jpg",
+    "user_id": 5,
+    "nextAppointment": {
+      "id": 12,
+      "date": "2026-03-10",
+      "time": "10:00:00"
+    },
+    "medicalHistory": []
+  }
+]
+```

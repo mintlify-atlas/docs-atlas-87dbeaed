@@ -1,0 +1,192 @@
+---
+title: 'Get Patient Profile'
+api: 'GET /api/pacientes/perfil/{id_usuario}'
+description: 'Retrieve the complete profile for a patient by their user ID'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  GET
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  `/api/pacientes/perfil/{id_usuario}`
+</ParamField>
+
+## Authentication
+
+This endpoint is currently **public** and does not require authentication.
+
+<Note>
+  In production environments, consider protecting this endpoint with authentication middleware to ensure users can only access their own profiles.
+</Note>
+
+## Path Parameters
+
+<ParamField path="id_usuario" type="number" required>
+  The user ID from the USUARIOS table to retrieve the profile for
+</ParamField>
+
+## Request Example
+
+```bash cURL
+curl -X GET https://api.vitafem.com/api/pacientes/perfil/42 \
+  -H "Accept: application/json"
+```
+
+```javascript JavaScript
+fetch('https://api.vitafem.com/api/pacientes/perfil/42', {
+  method: 'GET',
+  headers: {
+    'Accept': 'application/json'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+## Response
+
+<ResponseField name="ID_USUARIO" type="number">
+  The user's unique identifier from USUARIOS table
+</ResponseField>
+
+<ResponseField name="NOMBRE_COMPLETO" type="string">
+  Full name (from PACIENTES table if exists, otherwise from USUARIOS)
+</ResponseField>
+
+<ResponseField name="CORREO" type="string">
+  Email address from the USUARIOS table
+</ResponseField>
+
+<ResponseField name="TELEFONO" type="string">
+  Contact phone number (empty string if not set)
+</ResponseField>
+
+<ResponseField name="FECHA_NACIMIENTO" type="string">
+  Date of birth in YYYY-MM-DD format (empty string if not set)
+</ResponseField>
+
+<ResponseField name="TIPO_SANGRE" type="string">
+  Blood type (empty string if not set)
+</ResponseField>
+
+<ResponseField name="ALERGIAS_PRINCIPALES" type="string">
+  Main allergies or medical conditions (empty string if not set)
+</ResponseField>
+
+<ResponseField name="SEXO" type="string">
+  Patient's sex ('F' by default if not set)
+</ResponseField>
+
+<ResponseField name="FOTO_PERFIL" type="string" nullable>
+  Full URL to the profile photo, or null if no photo uploaded
+</ResponseField>
+
+### Success Response (200)
+
+```json
+{
+  "ID_USUARIO": 42,
+  "NOMBRE_COMPLETO": "María González",
+  "CORREO": "maria.gonzalez@example.com",
+  "TELEFONO": "5551234567",
+  "FECHA_NACIMIENTO": "1990-05-15",
+  "TIPO_SANGRE": "O+",
+  "ALERGIAS_PRINCIPALES": "Penicilina, Polen",
+  "SEXO": "F",
+  "FOTO_PERFIL": "https://api.vitafem.com/storage/avatars/abc123def456.jpg"
+}
+```
+
+### User Not Found Response (404)
+
+```json
+{
+  "message": "Usuario no encontrado"
+}
+```
+
+## Implementation Details
+
+### Oracle Field Handling
+
+This endpoint demonstrates Oracle-specific case handling:
+
+<Warning>
+  **Field Name Casing**: The Yajra Oracle driver returns database column names in lowercase when reading from the database, even though they're defined in UPPERCASE in the model. The controller explicitly handles this:
+  
+  ```php
+  // Reading from model (lowercase)
+  'NOMBRE_COMPLETO' => $paciente ? $paciente->nombre_completo : $user->nombre,
+  'TELEFONO' => $paciente ? $paciente->telefono : '',
+  ```
+</Warning>
+
+### Controller Method
+
+Implemented in `PacienteController::getProfile()` at `app/Http/Controllers/PacienteController.php:122`
+
+```php
+public function getProfile($id_usuario)
+{
+    // 1. Find user
+    $user = User::where('ID_USUARIO', $id_usuario)->first();
+
+    if (!$user) {
+        return response()->json(['message' => 'Usuario no encontrado'], 404);
+    }
+
+    // 2. Find patient
+    $paciente = Paciente::where('ID_USUARIO', $id_usuario)->first();
+
+    // 3. Merge data (reading in lowercase due to Oracle driver)
+    return response()->json([
+        'ID_USUARIO' => $user->id_usuario,
+        'NOMBRE_COMPLETO' => $paciente ? $paciente->nombre_completo : $user->nombre,
+        'CORREO' => $user->correo,
+        'TELEFONO' => $paciente ? $paciente->telefono : '',
+        'FECHA_NACIMIENTO' => $paciente ? $paciente->fecha_nacimiento : '',
+        'TIPO_SANGRE' => $paciente ? $paciente->tipo_sangre : '',
+        'ALERGIAS_PRINCIPALES' => $paciente ? $paciente->alergias_principales : '',
+        'SEXO' => $paciente ? $paciente->sexo : 'F',
+        'FOTO_PERFIL' => $user->foto_perfil ? asset('storage/' . $user->foto_perfil) : null
+    ]);
+}
+```
+
+## Data Sources
+
+This endpoint merges data from two tables:
+
+1. **USUARIOS table**: Contains authentication and basic user info
+   - `ID_USUARIO`
+   - `CORREO`
+   - `NOMBRE` (fallback if no patient record)
+   - `FOTO_PERFIL` (stored path)
+
+2. **PACIENTES table**: Contains medical and detailed patient info
+   - `NOMBRE_COMPLETO` (preferred over user's name)
+   - `TELEFONO`
+   - `FECHA_NACIMIENTO`
+   - `TIPO_SANGRE`
+   - `ALERGIAS_PRINCIPALES`
+   - `SEXO`
+
+<Info>
+  **Graceful Fallbacks**: If no patient record exists for the user, the endpoint returns the user's basic information with empty strings for missing medical data. This allows the profile to be retrieved even for users who haven't completed their medical information.
+</Info>
+
+## Profile Photo
+
+The `FOTO_PERFIL` field:
+
+- Stored in the `USUARIOS` table as a relative path (e.g., `avatars/abc123.jpg`)
+- Returned as a full URL using Laravel's `asset()` helper
+- Files are stored in `storage/app/public/avatars/`
+- Returns `null` if no photo has been uploaded
+
+<Tip>
+  The profile photo is managed through the update profile endpoint. See the [Update Patient Profile](/api/patients/update-profile) documentation for upload instructions.
+</Tip>

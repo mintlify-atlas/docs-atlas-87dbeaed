@@ -1,0 +1,349 @@
+---
+title: 'Update Patient Profile'
+api: 'POST /api/pacientes/perfil'
+description: 'Update or create a patient profile including medical data and profile photo'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  `/api/pacientes/perfil`
+</ParamField>
+
+## Authentication
+
+This endpoint is currently **public** and does not require authentication.
+
+<Warning>
+  In production, this endpoint MUST be protected with authentication to prevent unauthorized profile modifications.
+</Warning>
+
+## Request Body
+
+This endpoint accepts `multipart/form-data` to support file uploads.
+
+<ParamField body="ID_USUARIO" type="number" required>
+  The user ID from USUARIOS table (must exist in the database)
+</ParamField>
+
+<ParamField body="NOMBRE_COMPLETO" type="string" required>
+  Full name of the patient (max 255 characters)
+</ParamField>
+
+<ParamField body="TELEFONO" type="string" optional>
+  Contact phone number (numeric values only)
+</ParamField>
+
+<ParamField body="FECHA_NACIMIENTO" type="string" optional>
+  Date of birth in YYYY-MM-DD format
+</ParamField>
+
+<ParamField body="TIPO_SANGRE" type="string" optional>
+  Blood type (max 10 characters, e.g., 'O+', 'A-', 'B+', 'AB-')
+</ParamField>
+
+<ParamField body="ALERGIAS_PRINCIPALES" type="string" optional>
+  Main allergies or medical conditions
+</ParamField>
+
+<ParamField body="SEXO" type="string" optional>
+  Patient's sex (single character: 'F' or 'M')
+</ParamField>
+
+<ParamField body="FOTO_PERFIL" type="file" optional>
+  Profile photo image file (max 2MB, image formats only: jpg, png, gif, etc.)
+</ParamField>
+
+## Request Example
+
+```bash cURL
+curl -X POST https://api.vitafem.com/api/pacientes/perfil \
+  -H "Accept: application/json" \
+  -F "ID_USUARIO=42" \
+  -F "NOMBRE_COMPLETO=María González" \
+  -F "TELEFONO=5551234567" \
+  -F "FECHA_NACIMIENTO=1990-05-15" \
+  -F "TIPO_SANGRE=O+" \
+  -F "ALERGIAS_PRINCIPALES=Penicilina, Polen" \
+  -F "SEXO=F" \
+  -F "FOTO_PERFIL=@/path/to/photo.jpg"
+```
+
+```javascript JavaScript
+const formData = new FormData();
+formData.append('ID_USUARIO', 42);
+formData.append('NOMBRE_COMPLETO', 'María González');
+formData.append('TELEFONO', '5551234567');
+formData.append('FECHA_NACIMIENTO', '1990-05-15');
+formData.append('TIPO_SANGRE', 'O+');
+formData.append('ALERGIAS_PRINCIPALES', 'Penicilina, Polen');
+formData.append('SEXO', 'F');
+
+// Add file from input element
+const fileInput = document.querySelector('input[type="file"]');
+if (fileInput.files[0]) {
+  formData.append('FOTO_PERFIL', fileInput.files[0]);
+}
+
+fetch('https://api.vitafem.com/api/pacientes/perfil', {
+  method: 'POST',
+  headers: {
+    'Accept': 'application/json'
+  },
+  body: formData
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+## Response
+
+<ResponseField name="message" type="string">
+  Success message confirming the profile was updated
+</ResponseField>
+
+<ResponseField name="paciente" type="object">
+  The updated patient object
+  
+  <ResponseField name="ID_PACIENTE" type="number">
+    Unique patient identifier
+  </ResponseField>
+  
+  <ResponseField name="ID_USUARIO" type="number">
+    Associated user account ID
+  </ResponseField>
+  
+  <ResponseField name="NOMBRE_COMPLETO" type="string">
+    Full name of the patient
+  </ResponseField>
+  
+  <ResponseField name="TELEFONO" type="string">
+    Contact phone number
+  </ResponseField>
+  
+  <ResponseField name="FECHA_NACIMIENTO" type="string">
+    Date of birth
+  </ResponseField>
+  
+  <ResponseField name="TIPO_SANGRE" type="string">
+    Blood type
+  </ResponseField>
+  
+  <ResponseField name="ALERGIAS_PRINCIPALES" type="string">
+    Main allergies
+  </ResponseField>
+  
+  <ResponseField name="SEXO" type="string">
+    Patient's sex
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="foto_url" type="string" nullable>
+  Full URL to the uploaded profile photo, or null if no photo was uploaded
+</ResponseField>
+
+### Success Response (200)
+
+```json
+{
+  "message": "Perfil actualizado correctamente",
+  "paciente": {
+    "ID_PACIENTE": 5,
+    "ID_USUARIO": 42,
+    "NOMBRE_COMPLETO": "María González",
+    "TELEFONO": "5551234567",
+    "FECHA_NACIMIENTO": "1990-05-15",
+    "TIPO_SANGRE": "O+",
+    "ALERGIAS_PRINCIPALES": "Penicilina, Polen",
+    "SEXO": "F",
+    "CORREO": "maria.gonzalez@example.com"
+  },
+  "foto_url": "https://api.vitafem.com/storage/avatars/9j3k2m1n4o5p6q7r8s9t0u.jpg"
+}
+```
+
+### Validation Error Response (422)
+
+```json
+{
+  "message": "The given data was invalid.",
+  "errors": {
+    "ID_USUARIO": [
+      "The ID_USUARIO field is required.",
+      "The selected ID_USUARIO is invalid."
+    ],
+    "NOMBRE_COMPLETO": [
+      "The NOMBRE_COMPLETO field is required."
+    ],
+    "FOTO_PERFIL": [
+      "The FOTO_PERFIL must be an image.",
+      "The FOTO_PERFIL must not be greater than 2048 kilobytes."
+    ],
+    "FECHA_NACIMIENTO": [
+      "The FECHA_NACIMIENTO is not a valid date."
+    ]
+  }
+}
+```
+
+### Server Error Response (500)
+
+```json
+{
+  "message": "Error en el servidor: [detailed error message]"
+}
+```
+
+## Implementation Details
+
+### Controller Method
+
+Implemented in `PacienteController::updateProfile()` at `app/Http/Controllers/PacienteController.php:57`
+
+```php
+public function updateProfile(Request $request)
+{
+    // 1. Validate (Medical + Photo)
+    $request->validate([
+        'ID_USUARIO' => 'required|exists:USUARIOS,ID_USUARIO',
+        'NOMBRE_COMPLETO' => 'required|string|max:255',
+        'TELEFONO' => 'nullable|numeric',
+        'FOTO_PERFIL' => 'nullable|image|max:2048',
+        'FECHA_NACIMIENTO' => 'nullable|date',
+        'TIPO_SANGRE' => 'nullable|string|max:10',
+        'ALERGIAS_PRINCIPALES' => 'nullable|string',
+        'SEXO' => 'nullable|string|max:1',
+    ]);
+
+    // 2. Handle photo upload
+    $rutaFoto = null;
+    if ($request->hasFile('FOTO_PERFIL')) {
+        // Save to storage/app/public/avatars
+        $rutaFoto = $request->file('FOTO_PERFIL')->store('avatars', 'public');
+        
+        // Update USUARIOS table with photo path
+        User::where('ID_USUARIO', $request->ID_USUARIO)
+            ->update(['FOTO_PERFIL' => $rutaFoto]);
+    }
+
+    // 3. Create or update patient record
+    $paciente = Paciente::where('ID_USUARIO', $request->ID_USUARIO)->first();
+
+    if (!$paciente) {
+        $paciente = new Paciente();
+        $paciente->ID_USUARIO = $request->ID_USUARIO;
+        $paciente->CORREO = $user->CORREO ?? 'sin_correo@vita.fem';
+    }
+
+    // Update medical data
+    $paciente->NOMBRE_COMPLETO = $request->NOMBRE_COMPLETO;
+    $paciente->TELEFONO = $request->TELEFONO;
+    $paciente->FECHA_NACIMIENTO = $request->FECHA_NACIMIENTO;
+    $paciente->TIPO_SANGRE = $request->TIPO_SANGRE;
+    $paciente->ALERGIAS_PRINCIPALES = $request->ALERGIAS_PRINCIPALES;
+    $paciente->SEXO = $request->SEXO;
+
+    $paciente->save();
+
+    return response()->json([
+        'message' => 'Perfil actualizado correctamente',
+        'paciente' => $paciente,
+        'foto_url' => $rutaFoto ? asset('storage/' . $rutaFoto) : null
+    ]);
+}
+```
+
+## Behavior
+
+### Update or Create (Upsert)
+
+This endpoint implements an "upsert" pattern:
+
+1. **If patient record exists** (matching `ID_USUARIO`): Updates existing record
+2. **If patient record doesn't exist**: Creates new record with provided data
+
+<Info>
+  This allows users to complete their profile information even if they didn't fill it out during registration.
+</Info>
+
+### Photo Upload Process
+
+1. File is validated (must be image, max 2MB)
+2. File is stored in `storage/app/public/avatars/` with a random name
+3. Relative path (e.g., `avatars/abc123.jpg`) is saved to `USUARIOS.FOTO_PERFIL`
+4. Full URL is returned in the response using `asset()` helper
+
+<Warning>
+  **Storage Setup**: Ensure the symbolic link exists between `public/storage` and `storage/app/public` by running:
+  ```bash
+  php artisan storage:link
+  ```
+</Warning>
+
+## Validation Rules
+
+<ParamField body="ID_USUARIO" type="number" required>
+  - Required
+  - Must exist in USUARIOS table
+</ParamField>
+
+<ParamField body="NOMBRE_COMPLETO" type="string" required>
+  - Required
+  - String format
+  - Maximum 255 characters
+</ParamField>
+
+<ParamField body="TELEFONO" type="string" optional>
+  - Nullable
+  - Must be numeric
+</ParamField>
+
+<ParamField body="FOTO_PERFIL" type="file" optional>
+  - Nullable
+  - Must be an image file
+  - Maximum size: 2048 KB (2 MB)
+</ParamField>
+
+<ParamField body="FECHA_NACIMIENTO" type="string" optional>
+  - Nullable
+  - Must be a valid date
+</ParamField>
+
+<ParamField body="TIPO_SANGRE" type="string" optional>
+  - Nullable
+  - String format
+  - Maximum 10 characters
+</ParamField>
+
+<ParamField body="ALERGIAS_PRINCIPALES" type="string" optional>
+  - Nullable
+  - String format
+  - No length limit
+</ParamField>
+
+<ParamField body="SEXO" type="string" optional>
+  - Nullable
+  - String format
+  - Maximum 1 character
+</ParamField>
+
+## Error Handling
+
+The endpoint includes comprehensive error handling:
+
+- **Validation errors** (422): Returns detailed field-level errors
+- **Server errors** (500): Logs error and returns error message
+- All errors are logged using Laravel's `Log::error()` for debugging
+
+## Database Tables Affected
+
+1. **PACIENTES**: Medical and personal information (created or updated)
+2. **USUARIOS**: Profile photo path (updated only if photo uploaded)
+
+<Tip>
+  The endpoint updates two separate tables to maintain a clean separation between authentication data (USUARIOS) and medical records (PACIENTES).
+</Tip>

@@ -1,0 +1,293 @@
+---
+title: 'Get Doctor Schedule'
+api: 'GET /api/medico/{id_usuario}/horarios'
+description: 'Retrieve the weekly availability schedule for a doctor'
+---
+
+## Overview
+
+This endpoint returns the doctor's weekly schedule configuration, showing which days they work and their available hours. The schedule is used by the appointment booking system to generate available time slots.
+
+<RequestExample>
+```bash cURL
+curl --request GET \
+  --url https://api.vitafem.com/api/medico/5/horarios \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+```javascript JavaScript
+const getDoctorSchedule = async (doctorUserId) => {
+  const response = await fetch(
+    `https://api.vitafem.com/api/medico/${doctorUserId}/horarios`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
+    }
+  );
+  
+  return await response.json();
+};
+
+const schedule = await getDoctorSchedule(5);
+console.log(schedule);
+```
+
+```python Python
+import requests
+
+def get_doctor_schedule(doctor_user_id, token):
+    url = f'https://api.vitafem.com/api/medico/{doctor_user_id}/horarios'
+    headers = {'Authorization': f'Bearer {token}'}
+    
+    response = requests.get(url, headers=headers)
+    return response.json()
+
+schedule = get_doctor_schedule(5, token)
+print(schedule)
+```
+</RequestExample>
+
+## Path Parameters
+
+<ParamField path="id_usuario" type="integer" required>
+  The user ID of the doctor (from USUARIOS table)
+</ParamField>
+
+## Response
+
+<ResponseField name="schedule" type="array">
+  Array of 7 objects representing each day of the week (Monday through Sunday)
+
+  <Expandable title="Day Schedule Object">
+    <ResponseField name="dia_semana" type="integer" required>
+      ISO day of week number (1 = Monday, 7 = Sunday)
+    </ResponseField>
+
+    <ResponseField name="nombre_dia" type="string" required>
+      Spanish name of the day ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
+    </ResponseField>
+
+    <ResponseField name="activo" type="boolean" required>
+      Whether the doctor works on this day. `true` if working, `false` if day off.
+    </ResponseField>
+
+    <ResponseField name="hora_inicio" type="string" required>
+      Start time in 24-hour format (HH:MM). Defaults to "09:00" if day is not active.
+    </ResponseField>
+
+    <ResponseField name="hora_fin" type="string" required>
+      End time in 24-hour format (HH:MM). Defaults to "17:00" if day is not active.
+    </ResponseField>
+
+    <ResponseField name="duracion_cita" type="integer" required>
+      Appointment slot duration in minutes. Defaults to 60 if day is not active.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+[
+  {
+    "dia_semana": 1,
+    "nombre_dia": "Lunes",
+    "activo": true,
+    "hora_inicio": "09:00",
+    "hora_fin": "17:00",
+    "duracion_cita": 60
+  },
+  {
+    "dia_semana": 2,
+    "nombre_dia": "Martes",
+    "activo": true,
+    "hora_inicio": "08:00",
+    "hora_fin": "14:00",
+    "duracion_cita": 30
+  },
+  {
+    "dia_semana": 3,
+    "nombre_dia": "Miércoles",
+    "activo": true,
+    "hora_inicio": "09:00",
+    "hora_fin": "17:00",
+    "duracion_cita": 60
+  },
+  {
+    "dia_semana": 4,
+    "nombre_dia": "Jueves",
+    "activo": true,
+    "hora_inicio": "09:00",
+    "hora_fin": "17:00",
+    "duracion_cita": 60
+  },
+  {
+    "dia_semana": 5,
+    "nombre_dia": "Viernes",
+    "activo": true,
+    "hora_inicio": "09:00",
+    "hora_fin": "13:00",
+    "duracion_cita": 60
+  },
+  {
+    "dia_semana": 6,
+    "nombre_dia": "Sábado",
+    "activo": false,
+    "hora_inicio": "09:00",
+    "hora_fin": "17:00",
+    "duracion_cita": 60
+  },
+  {
+    "dia_semana": 7,
+    "nombre_dia": "Domingo",
+    "activo": false,
+    "hora_inicio": "09:00",
+    "hora_fin": "17:00",
+    "duracion_cita": 60
+  }
+]
+```
+
+```json Error - Doctor Not Found
+{
+  "error": "Médico no encontrado"
+}
+```
+</ResponseExample>
+
+## Understanding the Schedule
+
+### Day of Week (ISO 8601)
+
+The schedule uses ISO 8601 day numbering:
+
+| dia_semana | nombre_dia | English |
+|-----------|-----------|----------|
+| 1 | Lunes | Monday |
+| 2 | Martes | Tuesday |
+| 3 | Miércoles | Wednesday |
+| 4 | Jueves | Thursday |
+| 5 | Viernes | Friday |
+| 6 | Sábado | Saturday |
+| 7 | Domingo | Sunday |
+
+### Active vs Inactive Days
+
+- **Active days** (`activo: true`): Doctor works and accepts appointments
+- **Inactive days** (`activo: false`): Doctor's day off, no appointments available
+- Inactive days still return default times (9:00-17:00) for UI convenience
+
+### Appointment Slots
+
+The `duracion_cita` field determines how time slots are generated:
+
+- **30 minutes**: Slots at :00 and :30 (e.g., 9:00, 9:30, 10:00...)
+- **60 minutes**: Hourly slots (e.g., 9:00, 10:00, 11:00...)
+- **45 minutes**: Slots at :00, :45 intervals
+
+## Use Cases
+
+### Display Working Days
+```javascript
+const getWorkingDays = (schedule) => {
+  return schedule
+    .filter(day => day.activo)
+    .map(day => day.nombre_dia);
+};
+
+const workingDays = getWorkingDays(schedule);
+// ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
+```
+
+### Check if Doctor Works Today
+```javascript
+const isWorkingToday = (schedule) => {
+  const today = new Date().getDay();
+  // Convert JS day (0=Sunday) to ISO (1=Monday)
+  const isoDay = today === 0 ? 7 : today;
+  
+  const todaySchedule = schedule.find(d => d.dia_semana === isoDay);
+  return todaySchedule?.activo || false;
+};
+```
+
+### Calculate Daily Appointment Capacity
+```javascript
+const calculateDailyCapacity = (daySchedule) => {
+  if (!daySchedule.activo) return 0;
+  
+  const [startHour, startMin] = daySchedule.hora_inicio.split(':').map(Number);
+  const [endHour, endMin] = daySchedule.hora_fin.split(':').map(Number);
+  
+  const startMinutes = startHour * 60 + startMin;
+  const endMinutes = endHour * 60 + endMin;
+  const totalMinutes = endMinutes - startMinutes;
+  
+  return Math.floor(totalMinutes / daySchedule.duracion_cita);
+};
+
+const monday = schedule.find(d => d.dia_semana === 1);
+console.log(`Monday capacity: ${calculateDailyCapacity(monday)} appointments`);
+// "Monday capacity: 8 appointments" (9:00-17:00 with 60 min slots)
+```
+
+### Build Weekly Calendar View
+```javascript
+const WeeklySchedule = ({ schedule }) => {
+  return (
+    <div className="week-schedule">
+      {schedule.map(day => (
+        <div key={day.dia_semana} className={day.activo ? 'active' : 'inactive'}>
+          <h3>{day.nombre_dia}</h3>
+          {day.activo ? (
+            <>
+              <p>{day.hora_inicio} - {day.hora_fin}</p>
+              <p>{day.duracion_cita} min appointments</p>
+            </>
+          ) : (
+            <p>Day Off</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+## Integration with Appointment Booking
+
+This endpoint works together with the available slots endpoint:
+
+```javascript
+const bookAppointment = async (doctorUserId, selectedDate) => {
+  // 1. Get doctor's schedule to verify they work that day
+  const schedule = await getDoctorSchedule(doctorUserId);
+  const selectedDay = new Date(selectedDate).getDay();
+  const isoDay = selectedDay === 0 ? 7 : selectedDay;
+  
+  const daySchedule = schedule.find(d => d.dia_semana === isoDay);
+  
+  if (!daySchedule.activo) {
+    alert('Doctor does not work on this day');
+    return;
+  }
+  
+  // 2. Get available time slots for that specific date
+  const slots = await fetch(
+    `/api/horarios-disponibles?id_medico=${doctorId}&fecha=${selectedDate}`
+  ).then(r => r.json());
+  
+  // 3. Display slots to user for selection
+  displaySlots(slots);
+};
+```
+
+## Notes
+
+- Returns all 7 days even if some are inactive
+- Inactive days show default values for easier UI handling
+- Schedule can be modified using the [Update Schedule](/api/doctors/update-schedule) endpoint
+- Times are in 24-hour format (HH:MM)
+- The system automatically filters unavailable days when generating appointment slots
+- Default schedule for new doctors: Monday-Friday, 9:00-17:00, 60-minute slots

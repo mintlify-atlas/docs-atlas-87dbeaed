@@ -1,0 +1,242 @@
+---
+title: 'My Appointments'
+api: 'GET /api/pacientes/{id_usuario}/citas'
+description: 'Retrieve all appointments for a specific patient with medical consultation details'
+---
+
+## Overview
+
+This endpoint returns all appointments for a specific patient, including completed consultations with medical records, diagnoses, and prescriptions. Results are ordered from most recent to oldest.
+
+<Info>
+  This is a **public endpoint** but should be protected on the client side to ensure patients only access their own appointments using their `id_usuario`.
+</Info>
+
+## Path Parameters
+
+<ParamField path="id_usuario" type="integer" required>
+  Patient's user ID from the `USUARIOS` table. This is the same as `ID_PACIENTE` in the appointments.
+</ParamField>
+
+## Response Fields
+
+<ResponseField name="id_cita" type="integer" required>
+  Unique appointment identifier
+</ResponseField>
+
+<ResponseField name="fecha_formateada" type="string" required>
+  Formatted appointment date in `dd/mm/yyyy` format (e.g., "15/03/2026")
+</ResponseField>
+
+<ResponseField name="hora" type="string" required>
+  Appointment time in 24-hour `HH:mm` format (e.g., "14:30")
+</ResponseField>
+
+<ResponseField name="medico" type="string" required>
+  Doctor's full name. Falls back to "Especialista" if doctor information is unavailable.
+</ResponseField>
+
+<ResponseField name="estado" type="string" required>
+  Current appointment status:
+  - `PENDIENTE` - Awaiting confirmation
+  - `CONFIRMADA` - Confirmed by administrative staff
+  - `CANCELADA` - Cancelled by patient or staff
+  - `FINALIZADA` - Completed with medical consultation recorded
+</ResponseField>
+
+<ResponseField name="motivo" type="string">
+  Reason for the appointment as provided during booking
+</ResponseField>
+
+<ResponseField name="consulta_medica" type="object">
+  Medical consultation details. Only present for `FINALIZADA` appointments where the doctor has recorded the consultation.
+</ResponseField>
+
+<ResponseField name="consulta_medica.diagnostico" type="string">
+  Doctor's diagnosis from the consultation
+</ResponseField>
+
+<ResponseField name="consulta_medica.indicaciones" type="string">
+  Treatment instructions and recommendations
+</ResponseField>
+
+<ResponseField name="consulta_medica.medicamentos" type="array">
+  Prescribed medications with dosage and duration
+</ResponseField>
+
+<ResponseField name="consulta_medica.medicamentos[].medicamento" type="string">
+  Medication name
+</ResponseField>
+
+<ResponseField name="consulta_medica.medicamentos[].dosis" type="string">
+  Dosage amount (e.g., "500mg", "2 tabletas")
+</ResponseField>
+
+<ResponseField name="consulta_medica.medicamentos[].frecuencia" type="string">
+  Frequency of administration (e.g., "Cada 8 horas", "2 veces al día")
+</ResponseField>
+
+<ResponseField name="consulta_medica.medicamentos[].duracion" type="string">
+  Treatment duration (e.g., "7 días", "2 semanas")
+</ResponseField>
+
+## Request Example
+
+```bash
+curl -X GET https://api.vitafem.com/api/pacientes/123/citas \
+  -H "Accept: application/json"
+```
+
+## Response Example
+
+### With Medical Consultation
+
+```json
+[
+  {
+    "id_cita": 45,
+    "fecha_formateada": "10/03/2026",
+    "hora": "10:00",
+    "medico": "Dra. Ana Martínez",
+    "estado": "FINALIZADA",
+    "motivo": "Control prenatal",
+    "consulta_medica": {
+      "diagnostico": "Embarazo de 12 semanas - Evolución normal",
+      "indicaciones": "Continuar con ácido fólico. Mantener dieta equilibrada. Próximo control en 4 semanas.",
+      "medicamentos": [
+        {
+          "medicamento": "Ácido Fólico",
+          "dosis": "400mcg",
+          "frecuencia": "1 vez al día",
+          "duracion": "Hasta el parto"
+        },
+        {
+          "medicamento": "Complejo vitamínico prenatal",
+          "dosis": "1 tableta",
+          "frecuencia": "1 vez al día con alimentos",
+          "duracion": "Continuo"
+        }
+      ]
+    }
+  },
+  {
+    "id_cita": 48,
+    "fecha_formateada": "20/03/2026",
+    "hora": "14:30",
+    "medico": "Dr. Carlos Ruiz",
+    "estado": "CONFIRMADA",
+    "motivo": "Primera consulta - Planificación familiar",
+    "consulta_medica": null
+  }
+]
+```
+
+## Implementation Details
+
+### Data Retrieval
+
+The endpoint uses Eloquent eager loading to optimize queries:
+
+```php
+Cita::with(['medico.usuario'])
+    ->where('ID_PACIENTE', $id_usuario)
+    ->orderBy('FECHA_HORA', 'desc')
+    ->get();
+```
+
+### Medical Consultation Loading
+
+For each appointment, the system:
+1. Checks if a `CONSULTA` record exists for the appointment
+2. If found, retrieves the associated `RECETA` (prescription)
+3. Loads all `DETALLE_RECETA` records (individual medications)
+4. Assembles the complete medical record
+
+```php
+$consulta = Consulta::where('ID_CITAS', $idCitaReal)->first();
+if ($consulta) {
+    $receta = Receta::where('ID_CONSULTA', $idConsultaReal)->first();
+    if ($receta) {
+        $medicamentos = DetalleReceta::where('ID_RECETA', $idRecetaReal)->get();
+    }
+}
+```
+
+### Oracle Compatibility
+
+The controller handles Oracle's case sensitivity throughout:
+
+```php
+$fechaHoraStr = $cita->FECHA_HORA ?? $cita->fecha_hora;
+$diagnostico = $consulta->DIAGNOSTICO ?? $consulta->diagnostico;
+```
+
+## Appointment States Explained
+
+<Steps>
+  <Step title="PENDIENTE">
+    Initial state when appointment is created. Awaiting administrative confirmation.
+  </Step>
+  
+  <Step title="CONFIRMADA">
+    Staff has verified the appointment. Patient should attend at the scheduled time.
+  </Step>
+  
+  <Step title="FINALIZADA">
+    Doctor has completed the consultation and recorded medical notes. `consulta_medica` object will be populated.
+  </Step>
+  
+  <Step title="CANCELADA">
+    Appointment was cancelled. Time slot becomes available for other patients.
+  </Step>
+</Steps>
+
+## Error Responses
+
+### Internal Error (500)
+
+```json
+{
+  "error": "Error al obtener citas: Database connection timeout"
+}
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Patient Portal" icon="user">
+    Display appointment history and upcoming visits in the patient dashboard
+  </Card>
+  
+  <Card title="Medical Records" icon="file-medical">
+    Access past consultations, diagnoses, and prescriptions
+  </Card>
+  
+  <Card title="Prescription Refills" icon="prescription-bottle">
+    Review current medications and request refills
+  </Card>
+  
+  <Card title="Follow-up Scheduling" icon="calendar-check">
+    Check last visit date to schedule follow-up appointments
+  </Card>
+</CardGroup>
+
+## Data Privacy Considerations
+
+<Warning>
+  This endpoint returns sensitive medical information including diagnoses and prescriptions. Implement proper authentication and ensure patients can only access their own records.
+</Warning>
+
+<Check>
+  **Recommended Security:**
+  - Verify the `id_usuario` matches the authenticated user's ID
+  - Implement rate limiting to prevent data scraping
+  - Use HTTPS for all API calls
+  - Log access to medical records for compliance
+</Check>
+
+## Related Endpoints
+
+- [Create Appointment](/api/appointments/create) - Book a new appointment
+- [Update Status](/api/appointments/update-status) - Cancel an appointment
+- [Patient Profile](/api/patients/profile) - View complete patient profile

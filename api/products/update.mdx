@@ -1,0 +1,100 @@
+---
+title: "Update Product"
+api: "PUT /api/productos/{id}"
+description: "Update an existing product in the catalog"
+---
+
+## Authentication
+
+This endpoint requires authentication using Laravel Sanctum. Include the bearer token in the Authorization header.
+
+```bash
+Authorization: Bearer {token}
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The ID of the product to update
+</ParamField>
+
+## Request Body
+
+<ParamField body="nombre" type="string" required>
+  Name of the product (maximum 255 characters)
+</ParamField>
+
+<ParamField body="descripcion" type="string" optional>
+  Description of the product
+</ParamField>
+
+<ParamField body="precio" type="number" required>
+  Price of the product (must be 0 or greater)
+</ParamField>
+
+<ParamField body="stock" type="integer" required>
+  Available stock quantity (must be 0 or greater)
+</ParamField>
+
+<ParamField body="imagen" type="file" optional>
+  Product image. Accepts jpeg, png, jpg, gif formats. Maximum size: 2MB. Replaces existing image.
+</ParamField>
+
+## Response
+
+Returns the updated product object with public image URL.
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the product
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Name of the product
+</ResponseField>
+
+<ResponseField name="descripcion" type="string">
+  Description of the product
+</ResponseField>
+
+<ResponseField name="precio" type="number">
+  Price of the product
+</ResponseField>
+
+<ResponseField name="stock" type="integer">
+  Available stock quantity
+</ResponseField>
+
+<ResponseField name="imagen" type="string">
+  Public URL to the product image
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X PUT https://api.vitafem.com/api/productos/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json" \
+  -F "nombre=Alimento Premium para Perros" \
+  -F "descripcion=Alimento balanceado de alta calidad mejorado" \
+  -F "precio=49.99" \
+  -F "stock=200" \
+  -F "imagen=@/path/to/new-product.jpg"
+```
+
+## Example Response
+
+```json
+{
+  "id": 1,
+  "nombre": "Alimento Premium para Perros",
+  "descripcion": "Alimento balanceado de alta calidad mejorado",
+  "precio": 49.99,
+  "stock": 200,
+  "imagen": "https://api.vitafem.com/storage/productos/new-product.jpg"
+}
+```
+
+## Notes
+
+- If a new image is uploaded, the old image will be automatically deleted from storage
+- All fields are required except `descripcion` and `imagen`

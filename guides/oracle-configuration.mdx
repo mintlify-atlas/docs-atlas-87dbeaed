@@ -1,0 +1,629 @@
+---
+title: 'Oracle Database Configuration'
+description: 'Configure Oracle database connection for VitaFem Backend API'
+---
+
+## Overview
+
+VitaFem Backend API supports Oracle Database through the `yajra/laravel-oci8` package, which provides an Oracle driver for Laravel's database layer. This guide covers installation, configuration, and best practices for using Oracle with the VitaFem API.
+
+## Prerequisites
+
+Before configuring Oracle database connectivity, ensure you have:
+
+- Oracle Database 11g or higher
+- Oracle Instant Client installed on your server
+- PHP OCI8 extension installed
+- Database credentials with appropriate permissions
+- Network connectivity to Oracle database server
+
+## Installing Oracle Instant Client
+
+### Linux Installation
+
+<Steps>
+  <Step title="Download Oracle Instant Client">
+    Download the Oracle Instant Client Basic and SDK packages from Oracle's website:
+    - [Oracle Instant Client Downloads](https://www.oracle.com/database/technologies/instant-client/downloads.html)
+    
+    Download both packages:
+    - `instantclient-basic-linux.x64-19.x.x.x.zip`
+    - `instantclient-sdk-linux.x64-19.x.x.x.zip`
+  </Step>
+
+  <Step title="Install Instant Client">
+    ```bash
+    # Create directory for Oracle Instant Client
+    sudo mkdir -p /opt/oracle
+    cd /opt/oracle
+
+    # Unzip both packages
+    sudo unzip instantclient-basic-linux.x64-19.x.x.x.zip
+    sudo unzip instantclient-sdk-linux.x64-19.x.x.x.zip
+
+    # Create symbolic links
+    cd instantclient_19_x
+    sudo ln -s libclntsh.so.19.1 libclntsh.so
+    sudo ln -s libocci.so.19.1 libocci.so
+    ```
+  </Step>
+
+  <Step title="Configure environment variables">
+    Add to `/etc/environment` or `~/.bashrc`:
+    ```bash
+    export ORACLE_HOME=/opt/oracle/instantclient_19_x
+    export LD_LIBRARY_PATH=$ORACLE_HOME:$LD_LIBRARY_PATH
+    export PATH=$ORACLE_HOME:$PATH
+    ```
+    
+    Apply changes:
+    ```bash
+    source ~/.bashrc
+    ```
+  </Step>
+
+  <Step title="Install system dependencies">
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y libaio1 libaio-dev
+    ```
+  </Step>
+</Steps>
+
+### Docker Installation
+
+For Docker deployments, update your `Dockerfile`:
+
+```dockerfile
+FROM php:8.3-fpm
+
+# Install Oracle Instant Client
+RUN apt-get update && apt-get install -y \
+    libaio1 \
+    wget \
+    unzip
+
+# Download and install Oracle Instant Client
+RUN mkdir -p /opt/oracle \
+    && cd /opt/oracle \
+    && wget https://download.oracle.com/otn_software/linux/instantclient/1923000/instantclient-basic-linux.x64-19.23.0.0.0dbru.zip \
+    && wget https://download.oracle.com/otn_software/linux/instantclient/1923000/instantclient-sdk-linux.x64-19.23.0.0.0dbru.zip \
+    && unzip instantclient-basic-linux.x64-19.23.0.0.0dbru.zip \
+    && unzip instantclient-sdk-linux.x64-19.23.0.0.0dbru.zip \
+    && rm -f instantclient-basic-linux.x64-19.23.0.0.0dbru.zip instantclient-sdk-linux.x64-19.23.0.0.0dbru.zip
+
+# Set Oracle environment variables
+ENV ORACLE_HOME=/opt/oracle/instantclient_19_23
+ENV LD_LIBRARY_PATH=$ORACLE_HOME:$LD_LIBRARY_PATH
+ENV PATH=$ORACLE_HOME:$PATH
+
+# Install OCI8 extension
+RUN echo "instantclient,/opt/oracle/instantclient_19_23" | pecl install oci8-3.3.0 \
+    && docker-php-ext-enable oci8
+
+# Continue with rest of Dockerfile...
+```
+
+## Installing PHP OCI8 Extension
+
+<Steps>
+  <Step title="Install via PECL">
+    ```bash
+    sudo pecl install oci8
+    ```
+    
+    When prompted, enter the Oracle Instant Client path:
+    ```
+    instantclient,/opt/oracle/instantclient_19_x
+    ```
+  </Step>
+
+  <Step title="Enable OCI8 extension">
+    Add to your `php.ini` file:
+    ```ini
+    extension=oci8.so
+    ```
+    
+    Find your `php.ini` location:
+    ```bash
+    php --ini
+    ```
+  </Step>
+
+  <Step title="Verify installation">
+    ```bash
+    php -m | grep oci8
+    ```
+    
+    You should see `oci8` in the output.
+  </Step>
+
+  <Step title="Restart PHP-FPM">
+    ```bash
+    sudo systemctl restart php8.2-fpm
+    # or for Docker
+    docker-compose restart backend
+    ```
+  </Step>
+</Steps>
+
+## Installing Laravel OCI8 Package
+
+The `yajra/laravel-oci8` package is already included in `composer.json`:
+
+```json
+{
+    "require": {
+        "yajra/laravel-oci8": "*"
+    }
+}
+```
+
+If not installed, add it:
+
+```bash
+composer require yajra/laravel-oci8
+```
+
+## Database Configuration
+
+The Oracle database connection is already configured in `config/database.php`:
+
+```php
+'oracle' => [
+    'driver'         => 'oracle',
+    'tns'            => env('DB_TNS', ''),
+    'host'           => env('DB_HOST', ''),
+    'port'           => env('DB_PORT', '1521'),
+    'database'       => env('DB_DATABASE', ''),
+    'username'       => env('DB_USERNAME', ''),
+    'password'       => env('DB_PASSWORD', ''),
+    'charset'        => env('DB_CHARSET', 'AL32UTF8'),
+    'prefix'         => env('DB_PREFIX', ''),
+    'prefix_schema'  => env('DB_SCHEMA_PREFIX', ''),
+    'edition'        => env('DB_EDITION', 'ora$base'),
+    'server_version' => env('DB_SERVER_VERSION', '11g'),
+],
+```
+
+## Environment Configuration
+
+### Method 1: Using TNS Connection String
+
+Update your `.env` file:
+
+```env
+DB_CONNECTION=oracle
+DB_TNS="(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=oracle-host.example.com)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCL)))"
+DB_USERNAME=vitafem_user
+DB_PASSWORD=your_secure_password
+DB_CHARSET=AL32UTF8
+DB_PREFIX=
+DB_SCHEMA_PREFIX=
+```
+
+### Method 2: Using Host/Port/Database
+
+Alternatively, use individual connection parameters:
+
+```env
+DB_CONNECTION=oracle
+DB_HOST=oracle-host.example.com
+DB_PORT=1521
+DB_DATABASE=ORCL
+DB_USERNAME=vitafem_user
+DB_PASSWORD=your_secure_password
+DB_CHARSET=AL32UTF8
+DB_PREFIX=
+DB_SCHEMA_PREFIX=
+DB_SERVER_VERSION=19c
+```
+
+### Method 3: Using TNS Names
+
+<Steps>
+  <Step title="Create tnsnames.ora file">
+    Create `/opt/oracle/instantclient_19_x/network/admin/tnsnames.ora`:
+    ```
+    VITAFEM =
+      (DESCRIPTION =
+        (ADDRESS = (PROTOCOL = TCP)(HOST = oracle-host.example.com)(PORT = 1521))
+        (CONNECT_DATA =
+          (SERVER = DEDICATED)
+          (SERVICE_NAME = ORCL)
+        )
+      )
+    ```
+  </Step>
+
+  <Step title="Set TNS_ADMIN environment variable">
+    ```bash
+    export TNS_ADMIN=/opt/oracle/instantclient_19_x/network/admin
+    ```
+  </Step>
+
+  <Step title="Update .env file">
+    ```env
+    DB_CONNECTION=oracle
+    DB_TNS=VITAFEM
+    DB_USERNAME=vitafem_user
+    DB_PASSWORD=your_secure_password
+    ```
+  </Step>
+</Steps>
+
+## Character Set Configuration
+
+### Supported Character Sets
+
+The default character set is `AL32UTF8` (recommended):
+
+```env
+DB_CHARSET=AL32UTF8
+```
+
+Other common options:
+- `UTF8` - Unicode 3.0
+- `WE8ISO8859P1` - Western European
+- `WE8MSWIN1252` - Windows Western European
+
+### Setting NLS Parameters
+
+Add additional NLS settings to your `.env`:
+
+```env
+NLS_LANG=AMERICAN_AMERICA.AL32UTF8
+NLS_DATE_FORMAT=YYYY-MM-DD HH24:MI:SS
+NLS_TIMESTAMP_FORMAT=YYYY-MM-DD HH24:MI:SS.FF
+```
+
+## Testing the Connection
+
+<Steps>
+  <Step title="Test with Artisan">
+    ```bash
+    php artisan tinker
+    ```
+    
+    Then run:
+    ```php
+    DB::connection('oracle')->getPdo();
+    ```
+    
+    If successful, you'll see the PDO object details.
+  </Step>
+
+  <Step title="Test with query">
+    ```bash
+    php artisan tinker
+    ```
+    
+    Run a test query:
+    ```php
+    DB::connection('oracle')->select('SELECT * FROM dual');
+    ```
+  </Step>
+
+  <Step title="Check connection in code">
+    Create a test route or controller:
+    ```php
+    use Illuminate\Support\Facades\DB;
+
+    try {
+        $result = DB::connection('oracle')->select('SELECT 1 FROM dual');
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Oracle connection successful',
+            'result' => $result
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+    ```
+  </Step>
+</Steps>
+
+## Running Migrations
+
+Oracle-specific migration considerations:
+
+### Create Migration
+
+```bash
+php artisan make:migration create_patients_table
+```
+
+### Oracle-Compatible Migration Example
+
+```php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreatePatientsTable extends Migration
+{
+    public function up()
+    {
+        Schema::connection('oracle')->create('patients', function (Blueprint $table) {
+            $table->id();
+            $table->string('first_name', 100);
+            $table->string('last_name', 100);
+            $table->string('email', 255)->unique();
+            $table->date('date_of_birth');
+            $table->string('phone', 20)->nullable();
+            $table->text('medical_history')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::connection('oracle')->dropIfExists('patients');
+    }
+}
+```
+
+### Run Migrations
+
+```bash
+# Run migrations for Oracle connection
+php artisan migrate --database=oracle
+
+# Rollback
+php artisan migrate:rollback --database=oracle
+
+# Fresh migration
+php artisan migrate:fresh --database=oracle
+```
+
+## Working with Oracle in Models
+
+### Specify Oracle Connection
+
+```php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Patient extends Model
+{
+    protected $connection = 'oracle';
+    protected $table = 'patients';
+    
+    protected $fillable = [
+        'first_name',
+        'last_name',
+        'email',
+        'date_of_birth',
+        'phone',
+        'medical_history'
+    ];
+    
+    protected $casts = [
+        'date_of_birth' => 'date',
+    ];
+}
+```
+
+### Query Builder Examples
+
+```php
+// Insert
+$patient = Patient::create([
+    'first_name' => 'John',
+    'last_name' => 'Doe',
+    'email' => 'john.doe@example.com',
+    'date_of_birth' => '1990-01-15',
+]);
+
+// Query
+$patients = Patient::where('last_name', 'like', 'D%')
+    ->orderBy('created_at', 'desc')
+    ->get();
+
+// Raw query
+$results = DB::connection('oracle')->select(
+    'SELECT * FROM patients WHERE ROWNUM <= ?',
+    [10]
+);
+```
+
+## Performance Optimization
+
+### Connection Pooling
+
+Configure connection pooling in `config/database.php`:
+
+```php
+'oracle' => [
+    'driver' => 'oracle',
+    // ... other settings
+    'options' => [
+        PDO::ATTR_PERSISTENT => true,
+        PDO::ATTR_PREFETCH => 1000,
+    ],
+],
+```
+
+### Query Optimization
+
+1. **Use Bind Variables**
+   ```php
+   DB::connection('oracle')->select(
+       'SELECT * FROM patients WHERE id = :id',
+       ['id' => $patientId]
+   );
+   ```
+
+2. **Limit Result Sets**
+   ```php
+   // Using ROWNUM
+   DB::connection('oracle')->select(
+       'SELECT * FROM (SELECT * FROM patients ORDER BY id) WHERE ROWNUM <= 100'
+   );
+   ```
+
+3. **Use Indexes**
+   ```php
+   Schema::connection('oracle')->table('patients', function (Blueprint $table) {
+       $table->index('email');
+       $table->index(['last_name', 'first_name']);
+   });
+   ```
+
+### Caching
+
+Cache frequently accessed Oracle data:
+
+```php
+use Illuminate\Support\Facades\Cache;
+
+$patients = Cache::remember('active_patients', 3600, function () {
+    return Patient::where('status', 'active')->get();
+});
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### OCI8 Extension Not Found
+
+**Error**: `Call to undefined function oci_connect()`
+
+**Solution**:
+```bash
+# Verify OCI8 is installed
+php -m | grep oci8
+
+# If not found, reinstall
+sudo pecl install oci8
+echo "extension=oci8.so" | sudo tee -a /etc/php/8.2/cli/php.ini
+sudo systemctl restart php8.2-fpm
+```
+
+#### TNS: Could Not Resolve Connect Identifier
+
+**Error**: `ORA-12154: TNS:could not resolve the connect identifier specified`
+
+**Solution**:
+1. Check `TNS_ADMIN` environment variable
+2. Verify `tnsnames.ora` exists and is readable
+3. Use full TNS connection string in `.env` instead
+
+```env
+DB_TNS="(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=host)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCL)))"
+```
+
+#### Character Set Mismatch
+
+**Error**: `ORA-12705: Cannot access NLS data files or invalid environment specified`
+
+**Solution**:
+```bash
+export NLS_LANG=AMERICAN_AMERICA.AL32UTF8
+export NLS_DATE_FORMAT="YYYY-MM-DD HH24:MI:SS"
+```
+
+Add to `.env`:
+```env
+DB_CHARSET=AL32UTF8
+```
+
+#### Connection Timeout
+
+**Error**: `ORA-12170: TNS:Connect timeout occurred`
+
+**Solution**:
+1. Check network connectivity
+2. Verify firewall rules allow port 1521
+3. Add timeout parameters to TNS string:
+
+```env
+DB_TNS="(DESCRIPTION=(CONNECT_TIMEOUT=10)(RETRY_COUNT=3)(ADDRESS=(PROTOCOL=TCP)(HOST=host)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCL)))"
+```
+
+#### Insufficient Privileges
+
+**Error**: `ORA-01031: insufficient privileges`
+
+**Solution**:
+Grant necessary privileges:
+```sql
+GRANT CONNECT, RESOURCE TO vitafem_user;
+GRANT CREATE SESSION TO vitafem_user;
+GRANT CREATE TABLE TO vitafem_user;
+GRANT CREATE VIEW TO vitafem_user;
+GRANT CREATE SEQUENCE TO vitafem_user;
+```
+
+### Debugging Connection Issues
+
+Enable query logging:
+
+```php
+DB::connection('oracle')->enableQueryLog();
+
+// Run your queries
+$patients = Patient::all();
+
+// View executed queries
+dd(DB::connection('oracle')->getQueryLog());
+```
+
+Test connection directly:
+
+```bash
+php artisan tinker
+```
+
+```php
+try {
+    $pdo = DB::connection('oracle')->getPdo();
+    echo "Connection successful!\n";
+    var_dump($pdo->getAttribute(PDO::ATTR_CLIENT_VERSION));
+    var_dump($pdo->getAttribute(PDO::ATTR_SERVER_VERSION));
+} catch (\Exception $e) {
+    echo "Connection failed: " . $e->getMessage();
+}
+```
+
+## Best Practices
+
+### Security
+
+1. **Use separate database users** for each environment
+2. **Grant minimum privileges** required for the application
+3. **Never store credentials** in version control
+4. **Use encrypted connections** when possible
+5. **Rotate passwords** regularly
+
+### Performance
+
+1. **Use connection pooling** for high-traffic applications
+2. **Implement query caching** for frequently accessed data
+3. **Optimize queries** with appropriate indexes
+4. **Use bind variables** to prevent SQL injection and improve performance
+5. **Monitor slow queries** and optimize them
+
+### Maintenance
+
+1. **Regular backups** of Oracle database
+2. **Monitor connection limits** and adjust as needed
+3. **Keep Oracle Instant Client updated**
+4. **Review and optimize** table statistics
+5. **Document schema changes** and migration history
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Setup Guide" icon="rocket" href="/guides/setup">
+    Complete setup instructions for VitaFem Backend
+  </Card>
+  <Card title="Deployment" icon="server" href="/guides/deployment">
+    Deploy your application to production
+  </Card>
+</CardGroup>

@@ -1,0 +1,184 @@
+---
+title: "Send Chatbot Message"
+api: "POST /api/chatbot/message"
+description: "Process natural language messages and receive intelligent responses from the VitaFem chatbot assistant"
+---
+
+## Overview
+
+The chatbot message endpoint processes user text input and provides contextual responses. It handles greetings, appointment requests, veterinary clinic searches, and general assistance queries.
+
+### Conversation Flow
+
+The chatbot recognizes several conversation patterns:
+
+1. **Greetings** - "hola" or "ayuda" triggers welcome message
+2. **Appointments** - "cita" keyword initiates appointment booking flow
+3. **Veterinary Search** - "veterinaria" keyword finds nearest clinic based on location
+4. **Fallback** - Unrecognized input receives clarification prompt
+
+<Note>
+The chatbot uses simple keyword matching (case-insensitive) to determine user intent.
+</Note>
+
+## Request Body
+
+<ParamField body="text" type="string" required>
+  The user's message text. Converted to lowercase for pattern matching.
+  
+  **Examples:**
+  - "Hola"
+  - "Necesito agendar una cita"
+  - "Busco veterinaria cerca de mí"
+</ParamField>
+
+<ParamField body="location" type="object">
+  User's geographic coordinates (required for veterinary search).
+  
+  <Expandable title="location properties">
+    <ParamField body="lat" type="number" required>
+      Latitude coordinate
+    </ParamField>
+    
+    <ParamField body="lng" type="number" required>
+      Longitude coordinate
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="answer" type="string">
+  The chatbot's response message, formatted with markdown and emojis.
+</ResponseField>
+
+## Example Usage
+
+### Greeting Message
+
+```bash Request
+curl -X POST https://api.vitafem.com/api/chatbot/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hola"
+  }'
+```
+
+```json Response
+{
+  "answer": "¡Hola! Soy tu asistente VetPet 😊\nPuedo darte información o ayudarte a agendar una cita.\n¿Qué necesitas?"
+}
+```
+
+### Appointment Request
+
+```bash Request
+curl -X POST https://api.vitafem.com/api/chatbot/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Quiero agendar una cita"
+  }'
+```
+
+```json Response
+{
+  "answer": "Perfecto 🗓️\nDime tu **nombre**, **día** y **hora** para la cita."
+}
+```
+
+### Veterinary Search (Without Location)
+
+```bash Request
+curl -X POST https://api.vitafem.com/api/chatbot/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Busco veterinaria"
+  }'
+```
+
+```json Response
+{
+  "answer": "Para recomendarte la veterinaria más cercana, necesito tu ubicación 📍."
+}
+```
+
+### Veterinary Search (With Location)
+
+```bash Request
+curl -X POST https://api.vitafem.com/api/chatbot/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Busco veterinaria",
+    "location": {
+      "lat": 19.4326,
+      "lng": -99.1332
+    }
+  }'
+```
+
+```json Response
+{
+  "answer": "La veterinaria más cercana es **Clínica VetPet Centro** 📍\nA aproximadamente **2.45 km**."
+}
+```
+
+### Unrecognized Input
+
+```bash Request
+curl -X POST https://api.vitafem.com/api/chatbot/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "abcdefg"
+  }'
+```
+
+```json Response
+{
+  "answer": "No entendí muy bien 😅\n¿Puedes repetirlo?"
+}
+```
+
+### Empty Message
+
+```bash Request
+curl -X POST https://api.vitafem.com/api/chatbot/message \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+```json Response
+{
+  "answer": "No recibí ningún mensaje 🤔"
+}
+```
+
+## Implementation Details
+
+### Distance Calculation
+
+When searching for nearby veterinaries, the chatbot uses the Haversine formula to calculate distances between coordinates:
+
+- **Radius of Earth:** 6,371 km
+- **Output:** Distance rounded to 2 decimal places
+- **Filter:** Only includes partners with `role='partner'` and `partner_type='veterinaria'`
+- **Requirement:** Veterinary clinics must have valid `latitude` and `longitude` values
+
+### Response Format
+
+All responses use markdown formatting for emphasis:
+- **Bold text** for important information (names, dates, times)
+- Emojis for visual engagement
+- Line breaks for readability
+
+<Warning>
+If no veterinaries are found with valid coordinates, the chatbot returns an error message instead of failing silently.
+</Warning>
+
+## Related Endpoints
+
+- [Create Appointment](/api/chatbot/create-appointment) - Book an appointment through the chatbot
+
+## Source Code Reference
+
+**Controller:** `app/Http/Controllers/ChatbotController.php:12`  
+**Route:** `routes/api.php:32`

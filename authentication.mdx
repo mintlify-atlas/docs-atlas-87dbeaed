@@ -1,0 +1,974 @@
+---
+title: Authentication
+description: Complete guide to authenticating with the VitaFem Backend API using Laravel Sanctum, Firebase Authentication, and Social Login.
+---
+
+## Overview
+
+The VitaFem Backend API supports three authentication methods:
+
+1. **Laravel Sanctum** - Traditional email/password authentication with API tokens
+2. **Firebase Authentication** - Firebase ID token verification
+3. **Social Login** - OAuth via Google and Facebook (using Laravel Socialite)
+
+All protected routes use the `auth:sanctum` middleware and require a valid Bearer token.
+
+## Authentication Methods
+
+<CardGroup cols={3}>
+  <Card title="Sanctum" icon="shield">
+    Email/password authentication with secure API tokens
+  </Card>
+  <Card title="Firebase" icon="fire">
+    Firebase ID token verification for mobile apps
+  </Card>
+  <Card title="Social Login" icon="users">
+    OAuth with Google and Facebook
+  </Card>
+</CardGroup>
+
+---
+
+## Method 1: Laravel Sanctum Authentication
+
+Laravel Sanctum provides a simple token-based authentication system for SPAs and mobile applications.
+
+### Register a New User
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:8000/api/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Dr. Jane Smith",
+    "email": "jane.smith@vitafem.com",
+    "password": "securePassword123"
+  }'
+```
+
+```javascript JavaScript/Fetch
+const register = async (name, email, password) => {
+  const response = await fetch('http://localhost:8000/api/register', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name, email, password })
+  });
+  
+  const data = await response.json();
+  
+  if (response.ok) {
+    // Store token
+    localStorage.setItem('authToken', data.token);
+    return data;
+  } else {
+    throw new Error(data.message);
+  }
+};
+
+// Usage
+try {
+  const result = await register(
+    'Dr. Jane Smith',
+    'jane.smith@vitafem.com',
+    'securePassword123'
+  );
+  console.log('Registration successful:', result);
+} catch (error) {
+  console.error('Registration failed:', error.message);
+}
+```
+
+```python Python/Requests
+import requests
+
+def register(name, email, password):
+    url = 'http://localhost:8000/api/register'
+    payload = {
+        'name': name,
+        'email': email,
+        'password': password
+    }
+    
+    response = requests.post(url, json=payload)
+    
+    if response.status_code == 201:
+        data = response.json()
+        # Store token
+        return data['token']
+    else:
+        raise Exception(response.json()['message'])
+
+# Usage
+try:
+    token = register('Dr. Jane Smith', 'jane.smith@vitafem.com', 'securePassword123')
+    print(f'Token: {token}')
+except Exception as e:
+    print(f'Error: {e}')
+```
+</CodeGroup>
+
+#### Request Validation
+
+The registration endpoint validates:
+
+| Field | Rules |
+|-------|-------|
+| name | Required, string, max 255 characters |
+| email | Required, string, valid email, max 100 characters, unique in USUARIOS.CORREO |
+| password | Required, string, minimum 6 characters |
+
+#### Response
+
+```json 201 Created
+{
+  "message": "Usuario registrado",
+  "user": {
+    "ID_USUARIO": 1,
+    "NOMBRE": "Dr. Jane Smith",
+    "CORREO": "jane.smith@vitafem.com",
+    "ACTIVO": "1"
+  },
+  "token": "token-demo-123"
+}
+```
+
+<Note>
+**Implementation Detail:** The user is stored in the Oracle `USUARIOS` table with:
+- `NOMBRE` mapped from `name`
+- `CORREO` mapped from `email`
+- `PASSWORD` hashed using `Hash::make()`
+- `ACTIVO` set to `'1'` by default
+</Note>
+
+### Login
+
+Authenticate existing users and receive an access token.
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.smith@vitafem.com",
+    "password": "securePassword123"
+  }'
+```
+
+```javascript JavaScript/Fetch
+const login = async (email, password) => {
+  const response = await fetch('http://localhost:8000/api/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password })
+  });
+  
+  const data = await response.json();
+  
+  if (response.ok) {
+    // Store token and user data
+    localStorage.setItem('authToken', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    return data;
+  } else {
+    throw new Error(data.message);
+  }
+};
+
+// Usage
+try {
+  const result = await login('jane.smith@vitafem.com', 'securePassword123');
+  console.log('Login successful:', result.user);
+} catch (error) {
+  console.error('Login failed:', error.message);
+}
+```
+
+```python Python/Requests
+import requests
+
+def login(email, password):
+    url = 'http://localhost:8000/api/login'
+    payload = {'email': email, 'password': password}
+    
+    response = requests.post(url, json=payload)
+    data = response.json()
+    
+    if response.status_code == 200:
+        return data['token'], data['user']
+    else:
+        raise Exception(data['message'])
+
+# Usage
+try:
+    token, user = login('jane.smith@vitafem.com', 'securePassword123')
+    print(f'Logged in as: {user["NOMBRE"]}')
+except Exception as e:
+    print(f'Login failed: {e}')
+```
+</CodeGroup>
+
+#### Response
+
+```json 200 OK
+{
+  "message": "Login exitoso",
+  "user": {
+    "ID_USUARIO": 1,
+    "NOMBRE": "Dr. Jane Smith",
+    "CORREO": "jane.smith@vitafem.com",
+    "ACTIVO": "1"
+  },
+  "token": "token-demo-123"
+}
+```
+
+```json 401 Unauthorized
+{
+  "message": "Credenciales incorrectas"
+}
+```
+
+<Warning>
+**Security Note:** The login endpoint:
+1. Queries `User::where('CORREO', $request->email)` (case-sensitive in Oracle)
+2. Verifies password using `Hash::check($request->password, $user->password)`
+3. Hides sensitive fields using `makeHidden(['password', 'PASSWORD', 'CONTRASEÑA'])`
+</Warning>
+
+### Using the Token
+
+Include the token in all protected API requests:
+
+```bash Authorization Header
+Authorization: Bearer YOUR_TOKEN_HERE
+```
+
+<CodeGroup>
+```javascript JavaScript Example
+const token = localStorage.getItem('authToken');
+
+const response = await fetch('http://localhost:8000/api/me', {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/json'
+  }
+});
+
+const user = await response.json();
+```
+
+```python Python Example
+import requests
+
+token = 'your_token_here'
+headers = {
+    'Authorization': f'Bearer {token}',
+    'Accept': 'application/json'
+}
+
+response = requests.get('http://localhost:8000/api/me', headers=headers)
+user = response.json()
+```
+
+```php PHP Example
+$token = 'your_token_here';
+
+$curl = curl_init();
+curl_setopt_array($curl, [
+    CURLOPT_URL => 'http://localhost:8000/api/me',
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer ' . $token,
+        'Accept: application/json'
+    ]
+]);
+
+$response = curl_exec($curl);
+$user = json_decode($response, true);
+```
+</CodeGroup>
+
+### Get Current User
+
+Retrieve authenticated user information:
+
+```bash GET /api/me
+curl -X GET http://localhost:8000/api/me \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Accept: application/json"
+```
+
+### Logout
+
+Invalidate the current token:
+
+```bash POST /api/logout
+curl -X POST http://localhost:8000/api/logout \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Accept: application/json"
+```
+
+---
+
+## Method 2: Firebase Authentication
+
+For applications using Firebase Authentication (especially mobile apps), you can verify Firebase ID tokens and receive a Sanctum token.
+
+### How It Works
+
+<Steps>
+  <Step title="User Authenticates with Firebase">
+    User signs in using Firebase SDK (email, Google, phone, etc.)
+  </Step>
+  
+  <Step title="Get Firebase ID Token">
+    Your app obtains the Firebase ID token from the authenticated user
+  </Step>
+  
+  <Step title="Send Token to Backend">
+    POST the Firebase ID token to `/api/auth/firebase`
+  </Step>
+  
+  <Step title="Backend Verification">
+    The API verifies the token with Firebase Admin SDK and returns a Sanctum token
+  </Step>
+</Steps>
+
+### Firebase Login Endpoint
+
+**Endpoint:** `POST /api/auth/firebase`
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:8000/api/auth/firebase \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idToken": "FIREBASE_ID_TOKEN_HERE"
+  }'
+```
+
+```javascript JavaScript/Firebase
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+
+const authenticateWithFirebase = async (email, password) => {
+  try {
+    // 1. Sign in with Firebase
+    const auth = getAuth();
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    
+    // 2. Get ID token
+    const idToken = await userCredential.user.getIdToken();
+    
+    // 3. Send to backend
+    const response = await fetch('http://localhost:8000/api/auth/firebase', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ idToken })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      // Store backend token
+      localStorage.setItem('authToken', data.token);
+      return data;
+    } else {
+      throw new Error(data.message);
+    }
+  } catch (error) {
+    console.error('Firebase authentication failed:', error);
+    throw error;
+  }
+};
+
+// Usage
+try {
+  const result = await authenticateWithFirebase(
+    'user@example.com',
+    'password123'
+  );
+  console.log('Authenticated:', result.user);
+} catch (error) {
+  console.error('Error:', error.message);
+}
+```
+
+```kotlin Kotlin/Android
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.tasks.await
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import org.json.JSONObject
+
+suspend fun authenticateWithBackend() {
+    try {
+        // 1. Get Firebase user
+        val auth = FirebaseAuth.getInstance()
+        val user = auth.currentUser ?: throw Exception("Not logged in")
+        
+        // 2. Get ID token
+        val idToken = user.getIdToken(false).await().token
+        
+        // 3. Send to backend
+        val client = OkHttpClient()
+        val json = JSONObject().put("idToken", idToken)
+        val body = RequestBody.create(
+            "application/json".toMediaType(),
+            json.toString()
+        )
+        
+        val request = Request.Builder()
+            .url("http://localhost:8000/api/auth/firebase")
+            .post(body)
+            .build()
+        
+        val response = client.newCall(request).execute()
+        val responseData = JSONObject(response.body?.string() ?: "{}")
+        
+        if (response.isSuccessful) {
+            val token = responseData.getString("token")
+            // Store token
+            println("Backend token: $token")
+        } else {
+            throw Exception(responseData.getString("message"))
+        }
+    } catch (e: Exception) {
+        println("Authentication failed: ${e.message}")
+    }
+}
+```
+</CodeGroup>
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| idToken | string | Yes | Firebase ID token from authenticated user |
+
+### Response
+
+```json 200 OK
+{
+  "token": "1|aBcDeFgHiJkLmNoPqRsTuVwXyZ",
+  "user": {
+    "ID_USUARIO": 5,
+    "NOMBRE": "John Doe",
+    "CORREO": "john.doe@example.com",
+    "firebase_uid": "firebase_uid_12345",
+    "ACTIVO": "1"
+  }
+}
+```
+
+```json 401 Unauthorized
+{
+  "message": "Invalid Firebase token",
+  "error": "Token verification failed"
+}
+```
+
+```json 422 Unprocessable Entity
+{
+  "message": "No email provided by provider"
+}
+```
+
+### Implementation Details
+
+The Firebase authentication flow (from `FirebaseAuthController.php:20-68`):
+
+```php Firebase Verification Logic
+// 1. Verify ID token with Firebase Admin SDK
+$verifiedToken = $this->firebaseAuth->verifyIdToken($idToken);
+$uid = $verifiedToken->claims()->get('sub'); // Firebase UID
+$email = $verifiedToken->claims()->get('email');
+$name = $verifiedToken->claims()->get('name') ?? $email;
+
+// 2. Find or create user
+$user = User::where('firebase_uid', $uid)
+    ->orWhere('email', $email)
+    ->first();
+
+if (!$user) {
+    // Create new user
+    $user = User::create([
+        'name' => $name,
+        'email' => $email,
+        'password' => Hash::make(\Illuminate\Support\Str::random(24)),
+        'firebase_uid' => $uid,
+    ]);
+} else {
+    // Link Firebase UID if not already linked
+    if (!$user->firebase_uid) {
+        $user->firebase_uid = $uid;
+        $user->save();
+    }
+}
+
+// 3. Generate Sanctum token
+$token = $user->createToken('authToken')->plainTextToken;
+```
+
+<Note>
+**Key Features:**
+- Automatic user creation for new Firebase users
+- Links Firebase UID to existing email accounts
+- Generates random password for Firebase-only users
+- Returns standard Sanctum token for API access
+</Note>
+
+### Firebase Configuration
+
+Required dependencies (from `composer.json`):
+
+```json
+{
+  "kreait/firebase-php": "^6.9",
+  "kreait/laravel-firebase": "^4.2",
+  "firebase/php-jwt": "*"
+}
+```
+
+---
+
+## Method 3: Social Login (OAuth)
+
+Authenticate users via Google or Facebook using Laravel Socialite.
+
+### Supported Providers
+
+- **Google** - `GET /api/auth/google/redirect`
+- **Facebook** - `GET /api/auth/facebook/redirect`
+
+### OAuth Flow
+
+<Steps>
+  <Step title="Redirect to Provider">
+    Navigate user to `/api/auth/{provider}/redirect`
+  </Step>
+  
+  <Step title="User Authorizes">
+    User logs in with Google/Facebook and grants permissions
+  </Step>
+  
+  <Step title="Callback Processing">
+    Provider redirects to `/api/auth/{provider}/callback`
+  </Step>
+  
+  <Step title="User Creation/Login">
+    Backend creates or finds user and generates token
+  </Step>
+  
+  <Step title="Frontend Redirect">
+    User redirected to frontend with token in URL
+  </Step>
+</Steps>
+
+### Google Login
+
+<CodeGroup>
+```html HTML/Link
+<a href="http://localhost:8000/api/auth/google/redirect">
+  Sign in with Google
+</a>
+```
+
+```javascript JavaScript/Redirect
+const loginWithGoogle = () => {
+  window.location.href = 'http://localhost:8000/api/auth/google/redirect';
+};
+
+// In your component
+<button onClick={loginWithGoogle}>
+  Sign in with Google
+</button>
+```
+
+```javascript React Example
+import React from 'react';
+
+const GoogleLoginButton = () => {
+  const handleGoogleLogin = () => {
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    const popup = window.open(
+      'http://localhost:8000/api/auth/google/redirect',
+      'Google Login',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+    
+    // Listen for token from redirect
+    window.addEventListener('message', (event) => {
+      if (event.data.token) {
+        localStorage.setItem('authToken', event.data.token);
+        popup.close();
+      }
+    });
+  };
+  
+  return (
+    <button onClick={handleGoogleLogin}>
+      <img src="/google-icon.svg" alt="Google" />
+      Sign in with Google
+    </button>
+  );
+};
+```
+</CodeGroup>
+
+### Facebook Login
+
+```html Facebook Login
+<a href="http://localhost:8000/api/auth/facebook/redirect">
+  Sign in with Facebook
+</a>
+```
+
+### Callback Handling
+
+After successful authentication, users are redirected to:
+
+```
+https://vetpetfront.onrender.com/social-login-success?token=YOUR_TOKEN_HERE
+```
+
+On error:
+
+```
+https://vetpetfront.onrender.com/login?error=social_login_failed
+```
+
+### Implementation Details
+
+From `routes/api.php:89-110`:
+
+```php Social Login Logic
+Route::get('/auth/{provider}/callback', function ($provider) {
+    try {
+        // Get user from provider
+        $socialUser = Socialite::driver($provider)->stateless()->user();
+        
+        // Create or update user
+        $user = User::updateOrCreate(
+            ['email' => $socialUser->getEmail()],
+            [
+                'name' => $socialUser->getName(),
+                'email' => $socialUser->getEmail(),
+                'password' => bcrypt(str()->random(16)),
+                'role' => 'user'
+            ]
+        );
+        
+        // Generate token
+        $token = $user->createToken('authToken')->plainTextToken;
+        
+        // Redirect to frontend with token
+        return redirect("https://vetpetfront.onrender.com/social-login-success?token=$token");
+    } catch (\Exception $e) {
+        return redirect("https://vetpetfront.onrender.com/login?error=social_login_failed");
+    }
+});
+```
+
+<Note>
+**Key Features:**
+- Uses `updateOrCreate()` to handle existing users
+- Generates random password for OAuth-only users
+- Defaults to `'user'` role
+- Stateless authentication (no session cookies)
+</Note>
+
+### Handling the Token in Frontend
+
+<CodeGroup>
+```javascript Vanilla JS
+// On your /social-login-success page
+const urlParams = new URLSearchParams(window.location.search);
+const token = urlParams.get('token');
+
+if (token) {
+  localStorage.setItem('authToken', token);
+  
+  // Fetch user data
+  fetch('http://localhost:8000/api/me', {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json'
+    }
+  })
+  .then(res => res.json())
+  .then(user => {
+    localStorage.setItem('user', JSON.stringify(user));
+    window.location.href = '/dashboard';
+  });
+} else {
+  console.error('No token received');
+}
+```
+
+```javascript React Router
+import { useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+
+const SocialLoginSuccess = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    const token = searchParams.get('token');
+    
+    if (token) {
+      localStorage.setItem('authToken', token);
+      
+      // Fetch user profile
+      fetch('http://localhost:8000/api/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      })
+      .then(res => res.json())
+      .then(user => {
+        localStorage.setItem('user', JSON.stringify(user));
+        navigate('/dashboard');
+      })
+      .catch(error => {
+        console.error('Failed to fetch user:', error);
+        navigate('/login?error=auth_failed');
+      });
+    } else {
+      navigate('/login?error=no_token');
+    }
+  }, [searchParams, navigate]);
+  
+  return <div>Completing login...</div>;
+};
+```
+</CodeGroup>
+
+---
+
+## Protected Routes
+
+All routes within `Route::middleware('auth:sanctum')->group()` require authentication:
+
+```php Protected Routes (from routes/api.php)
+// Session & Profile
+POST   /api/logout
+GET    /api/me
+POST   /api/update-profile/{id}
+
+// User Management (Admin)
+POST   /api/admin/users
+PUT    /api/users/{id}
+DELETE /api/users/{id}
+
+// Appointments (Dashboard)
+GET    /api/citas
+DELETE /api/citas/{id}
+
+// Products Management
+POST   /api/productos
+PUT    /api/productos/{id}
+DELETE /api/productos/{id}
+
+// Pet Cardex
+GET    /api/pets
+POST   /api/pets
+PUT    /api/pets/{id}
+DELETE /api/pets/{id}
+
+// Appointments
+POST   /api/appointments
+GET    /api/appointments
+POST   /api/appointments/{id}/complete
+GET    /api/available-slots
+```
+
+## Unauthorized Response
+
+When accessing protected routes without a valid token:
+
+```json 401 Unauthenticated
+{
+  "message": "Unauthenticated."
+}
+```
+
+## Token Security Best Practices
+
+<Warning>
+**Security Recommendations:**
+
+1. **Store tokens securely** - Use `httpOnly` cookies when possible, or localStorage with XSS protection
+2. **Use HTTPS** - Always transmit tokens over HTTPS in production
+3. **Implement token refresh** - Consider implementing token refresh for long-lived sessions
+4. **Validate on every request** - Sanctum validates tokens on each request automatically
+5. **Revoke on logout** - Always call `/api/logout` to invalidate tokens
+6. **Monitor token usage** - Track and log authentication attempts
+</Warning>
+
+## Testing Authentication
+
+<Tabs>
+  <Tab title="Postman">
+    ```javascript Collection Pre-request Script
+    // Store token from login/register
+    if (pm.response.json().token) {
+      pm.environment.set('authToken', pm.response.json().token);
+    }
+    ```
+    
+    Then use `{{authToken}}` in Authorization header:
+    ```
+    Bearer {{authToken}}
+    ```
+  </Tab>
+  
+  <Tab title="cURL">
+    ```bash
+    # 1. Login and extract token
+    TOKEN=$(curl -s -X POST http://localhost:8000/api/login \
+      -H "Content-Type: application/json" \
+      -d '{"email":"user@example.com","password":"password"}' \
+      | jq -r '.token')
+    
+    # 2. Use token in requests
+    curl -X GET http://localhost:8000/api/me \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Accept: application/json"
+    ```
+  </Tab>
+  
+  <Tab title="JavaScript">
+    ```javascript
+    // Authentication service
+    class AuthService {
+      static TOKEN_KEY = 'authToken';
+      
+      static async login(email, password) {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.setToken(data.token);
+          return data.user;
+        } else {
+          throw new Error('Login failed');
+        }
+      }
+      
+      static setToken(token) {
+        localStorage.setItem(this.TOKEN_KEY, token);
+      }
+      
+      static getToken() {
+        return localStorage.getItem(this.TOKEN_KEY);
+      }
+      
+      static async request(url, options = {}) {
+        const token = this.getToken();
+        const headers = {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...options.headers
+        };
+        
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        return fetch(url, { ...options, headers });
+      }
+      
+      static async logout() {
+        await this.request('/api/logout', { method: 'POST' });
+        localStorage.removeItem(this.TOKEN_KEY);
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="401 Unauthenticated Error">
+    **Possible causes:**
+    - Token is missing from Authorization header
+    - Token format is incorrect (must be `Bearer TOKEN`)
+    - Token has been revoked (user logged out)
+    - Token is invalid or expired
+    
+    **Solution:**
+    - Verify token is included: `Authorization: Bearer YOUR_TOKEN`
+    - Check token is not null or undefined
+    - Re-login to get a fresh token
+  </Accordion>
+  
+  <Accordion title="422 Validation Error on Register">
+    **Common issues:**
+    - Email already exists
+    - Password too short (minimum 6 characters)
+    - Invalid email format
+    
+    **Solution:**
+    - Check error response for specific field errors
+    - Ensure email is unique
+    - Use strong password (6+ characters)
+  </Accordion>
+  
+  <Accordion title="Firebase Token Verification Failed">
+    **Possible causes:**
+    - Invalid Firebase ID token
+    - Token expired (tokens expire after 1 hour)
+    - Firebase project configuration mismatch
+    
+    **Solution:**
+    - Get a fresh ID token from Firebase SDK
+    - Verify Firebase project credentials in backend
+    - Check Firebase Admin SDK is properly initialized
+  </Accordion>
+  
+  <Accordion title="Social Login Redirect Issues">
+    **Common problems:**
+    - Redirect URL not whitelisted in OAuth provider
+    - Missing provider credentials in .env
+    - Incorrect callback URL
+    
+    **Solution:**
+    - Add callback URL to Google/Facebook OAuth settings
+    - Verify GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET in .env
+    - Check Laravel Socialite configuration
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/auth/register">
+    Explore all available endpoints
+  </Card>
+  <Card title="User Roles" icon="users" href="/concepts/roles-permissions">
+    Learn about user roles and permissions
+  </Card>
+  <Card title="Appointments" icon="calendar" href="/api/appointments/create">
+    Booking and scheduling system
+  </Card>
+  <Card title="Core Concepts" icon="triangle-exclamation" href="/concepts/architecture">
+    Understand the architecture
+  </Card>
+</CardGroup>

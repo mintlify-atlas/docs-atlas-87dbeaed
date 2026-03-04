@@ -1,0 +1,143 @@
+---
+title: 'Register User'
+api: 'POST /api/register'
+description: 'Create a new user account in the VitaFem system'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  /api/register
+</ParamField>
+
+## Authentication
+
+This endpoint is public and does not require authentication.
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  User's full name. Maximum 255 characters.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  User's email address. Must be unique in the system. Maximum 100 characters.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password. Minimum 6 characters.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  Success message indicating user registration status
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The created user object
+  
+  <ResponseField name="NOMBRE" type="string">
+    User's full name
+  </ResponseField>
+  
+  <ResponseField name="CORREO" type="string">
+    User's email address
+  </ResponseField>
+  
+  <ResponseField name="ACTIVO" type="string">
+    User account status ("1" for active)
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  Authentication token for subsequent API requests (Sanctum token)
+</ResponseField>
+
+## Example Request
+
+```bash cURL
+curl -X POST https://api.vitafem.com/api/register \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "name": "Jane Doe",
+    "email": "jane.doe@example.com",
+    "password": "securePassword123"
+  }'
+```
+
+```json Request Body
+{
+  "name": "Jane Doe",
+  "email": "jane.doe@example.com",
+  "password": "securePassword123"
+}
+```
+
+## Example Response
+
+```json 201 Success
+{
+  "message": "Usuario registrado",
+  "user": {
+    "NOMBRE": "Jane Doe",
+    "CORREO": "jane.doe@example.com",
+    "ACTIVO": "1",
+    "updated_at": "2026-03-04T10:30:00.000000Z",
+    "created_at": "2026-03-04T10:30:00.000000Z",
+    "ID_USUARIO": 123
+  },
+  "token": "1|AbCdEfGhIjKlMnOpQrStUvWxYz1234567890"
+}
+```
+
+## Error Responses
+
+```json 422 Validation Error
+{
+  "message": "The email has already been taken.",
+  "errors": {
+    "email": [
+      "The email has already been taken."
+    ]
+  }
+}
+```
+
+```json 422 Validation Error - Missing Fields
+{
+  "message": "The name field is required. (and 1 more error)",
+  "errors": {
+    "name": [
+      "The name field is required."
+    ],
+    "password": [
+      "The password field is required."
+    ]
+  }
+}
+```
+
+```json 422 Validation Error - Password Too Short
+{
+  "message": "The password must be at least 6 characters.",
+  "errors": {
+    "password": [
+      "The password must be at least 6 characters."
+    ]
+  }
+}
+```
+
+## Notes
+
+- Passwords are securely hashed using bcrypt before storage
+- Email addresses must be unique across the system
+- New users are automatically activated with `ACTIVO = "1"`
+- The returned token should be stored and included in subsequent authenticated requests
+- The API uses Oracle database with uppercase column names (NOMBRE, CORREO, etc.)

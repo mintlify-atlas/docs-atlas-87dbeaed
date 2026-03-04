@@ -1,0 +1,104 @@
+---
+title: "Update Pet"
+api: "PUT /api/pets/{id}"
+description: "Update an existing pet belonging to the authenticated user"
+---
+
+## Authentication
+
+This endpoint requires authentication using Laravel Sanctum. Include the bearer token in the Authorization header.
+
+```bash
+Authorization: Bearer {token}
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The ID of the pet to update
+</ParamField>
+
+## Request Body
+
+<ParamField body="name" type="string" optional>
+  Name of the pet
+</ParamField>
+
+<ParamField body="owner_name" type="string" optional>
+  Name of the pet's owner
+</ParamField>
+
+<ParamField body="age" type="integer" optional>
+  Age of the pet in years
+</ParamField>
+
+<ParamField body="breed" type="string" optional>
+  Breed of the pet
+</ParamField>
+
+<ParamField body="photo" type="file" optional>
+  Photo of the pet. Accepts jpeg, png, jpg, gif formats. Maximum size: 2MB. Replaces existing photo.
+</ParamField>
+
+## Response
+
+Returns the updated pet object.
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the pet
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Name of the pet
+</ResponseField>
+
+<ResponseField name="owner_name" type="string">
+  Name of the pet's owner
+</ResponseField>
+
+<ResponseField name="age" type="integer">
+  Age of the pet in years
+</ResponseField>
+
+<ResponseField name="breed" type="string">
+  Breed of the pet
+</ResponseField>
+
+<ResponseField name="photo_url" type="string">
+  URL to the pet's photo
+</ResponseField>
+
+<ResponseField name="user_id" type="integer">
+  ID of the user who owns this pet
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X PUT https://api.vitafem.com/api/pets/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json" \
+  -F "name=Max" \
+  -F "age=4" \
+  -F "photo=@/path/to/new-photo.jpg"
+```
+
+## Example Response
+
+```json
+{
+  "id": 1,
+  "name": "Max",
+  "owner_name": "John Doe",
+  "age": 4,
+  "breed": "Golden Retriever",
+  "photo_url": "https://api.vitafem.com/storage/pets/new-photo.jpg",
+  "user_id": 5
+}
+```
+
+## Notes
+
+- This endpoint also accepts POST requests with `_method=PUT` for compatibility with form submissions
+- Only the pet owner can update their pets
+- If a new photo is uploaded, the old photo will be replaced

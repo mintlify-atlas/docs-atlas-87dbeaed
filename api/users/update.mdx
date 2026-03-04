@@ -1,0 +1,135 @@
+---
+title: "Update User"
+api: "PUT /api/users/{id}"
+description: "Update an existing user's information"
+---
+
+## Authentication
+
+This endpoint requires authentication using Laravel Sanctum. Include the bearer token in the Authorization header.
+
+```bash
+Authorization: Bearer {token}
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The ID of the user to update
+</ParamField>
+
+## Request Body
+
+All fields are optional. Only include fields you want to update.
+
+<ParamField body="name" type="string" optional>
+  Full name of the user
+</ParamField>
+
+<ParamField body="email" type="string" optional>
+  Email address (must be unique)
+</ParamField>
+
+<ParamField body="password" type="string" optional>
+  New password (minimum 6 characters)
+</ParamField>
+
+<ParamField body="phone" type="string" optional>
+  Phone number
+</ParamField>
+
+<ParamField body="address" type="string" optional>
+  Physical address
+</ParamField>
+
+<ParamField body="latitude" type="number" optional>
+  Geographic latitude coordinate
+</ParamField>
+
+<ParamField body="longitude" type="number" optional>
+  Geographic longitude coordinate
+</ParamField>
+
+## Response
+
+Returns a success message and the updated user object.
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The updated user object
+  
+  <ResponseField name="id" type="integer">
+    Unique identifier for the user
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Full name of the user
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    Email address
+  </ResponseField>
+  
+  <ResponseField name="role" type="string">
+    User role
+  </ResponseField>
+  
+  <ResponseField name="phone" type="string">
+    Phone number
+  </ResponseField>
+  
+  <ResponseField name="address" type="string">
+    Physical address
+  </ResponseField>
+  
+  <ResponseField name="latitude" type="number">
+    Geographic latitude coordinate
+  </ResponseField>
+  
+  <ResponseField name="longitude" type="number">
+    Geographic longitude coordinate
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X PUT https://api.vitafem.com/api/users/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Veterinaria San José - Sede Central",
+    "phone": "+1234567899",
+    "latitude": 9.9300,
+    "longitude": -84.0920
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "message": "Actualizado",
+  "user": {
+    "id": 1,
+    "name": "Veterinaria San José - Sede Central",
+    "email": "info@vetsanjose.com",
+    "role": "partner",
+    "phone": "+1234567899",
+    "address": "Calle Principal 123",
+    "latitude": 9.9300,
+    "longitude": -84.0920
+  }
+}
+```
+
+## Notes
+
+- Only send fields that need to be updated
+- Password will be automatically hashed if provided
+- Email must be unique in the system
+- Returns 404 if user not found

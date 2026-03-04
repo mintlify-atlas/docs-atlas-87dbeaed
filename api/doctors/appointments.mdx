@@ -1,0 +1,255 @@
+---
+title: 'Get Doctor Appointments'
+api: 'GET /api/medico/{id_usuario}/citas'
+description: 'Retrieve all appointments for a specific doctor'
+---
+
+## Overview
+
+This endpoint returns all appointments assigned to a doctor, with optional date filtering. It includes patient information and appointment status.
+
+<RequestExample>
+```bash cURL
+curl --request GET \
+  --url 'https://api.vitafem.com/api/medico/5/citas?fecha=2026-03-15' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+```javascript JavaScript
+const getDoctorAppointments = async (doctorUserId, fecha = null) => {
+  const url = new URL(`https://api.vitafem.com/api/medico/${doctorUserId}/citas`);
+  
+  if (fecha) {
+    url.searchParams.append('fecha', fecha);
+  }
+  
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json'
+    }
+  });
+  
+  return await response.json();
+};
+
+// Get today's appointments
+const todayAppointments = await getDoctorAppointments(5, '2026-03-15');
+
+// Get all future appointments
+const allAppointments = await getDoctorAppointments(5);
+```
+
+```python Python
+import requests
+from datetime import date
+
+def get_doctor_appointments(doctor_user_id, fecha=None):
+    url = f'https://api.vitafem.com/api/medico/{doctor_user_id}/citas'
+    headers = {'Authorization': f'Bearer {token}'}
+    
+    params = {}
+    if fecha:
+        params['fecha'] = fecha
+    
+    response = requests.get(url, headers=headers, params=params)
+    return response.json()
+
+# Get appointments for specific date
+appointments = get_doctor_appointments(5, '2026-03-15')
+```
+</RequestExample>
+
+## Path Parameters
+
+<ParamField path="id_usuario" type="integer" required>
+  The user ID of the doctor (from the USUARIOS table, not the MEDICO table)
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="fecha" type="string" optional>
+  Filter appointments by specific date in format `YYYY-MM-DD`. If not provided, returns all appointments from today onwards.
+</ParamField>
+
+## Response
+
+<ResponseField name="appointments" type="array">
+  Array of appointment objects for the doctor
+
+  <Expandable title="Appointment Object">
+    <ResponseField name="id_cita" type="integer" required>
+      Unique appointment identifier
+    </ResponseField>
+
+    <ResponseField name="id_paciente" type="integer" required>
+      Patient's user ID for querying medical history
+    </ResponseField>
+
+    <ResponseField name="paciente" type="string" required>
+      Patient's full name from their profile or user account
+    </ResponseField>
+
+    <ResponseField name="fecha_formateada" type="string" required>
+      Formatted date in DD/MM/YYYY format
+    </ResponseField>
+
+    <ResponseField name="hora" type="string" required>
+      Appointment time in 24-hour format (HH:MM)
+    </ResponseField>
+
+    <ResponseField name="estado" type="string" required>
+      Appointment status: `PENDIENTE`, `CONFIRMADA`, `FINALIZADA`, or `CANCELADA`
+    </ResponseField>
+
+    <ResponseField name="motivo" type="string">
+      Reason for the appointment provided by the patient
+    </ResponseField>
+
+    <ResponseField name="notas_medicas" type="string">
+      Medical notes added after the consultation. Null if appointment hasn't been attended.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+[
+  {
+    "id_cita": 45,
+    "id_paciente": 12,
+    "paciente": "María González Pérez",
+    "fecha_formateada": "15/03/2026",
+    "hora": "10:00",
+    "estado": "CONFIRMADA",
+    "motivo": "Control prenatal mensual",
+    "notas_medicas": null
+  },
+  {
+    "id_cita": 46,
+    "id_paciente": 8,
+    "paciente": "Ana Rodríguez",
+    "fecha_formateada": "15/03/2026",
+    "hora": "11:00",
+    "estado": "PENDIENTE",
+    "motivo": "Primera consulta ginecológica",
+    "notas_medicas": null
+  },
+  {
+    "id_cita": 42,
+    "id_paciente": 15,
+    "paciente": "Carmen López",
+    "fecha_formateada": "14/03/2026",
+    "hora": "09:00",
+    "estado": "FINALIZADA",
+    "motivo": "Revisión de resultados",
+    "notas_medicas": "Diagnóstico: Resultados normales. Control en 6 meses."
+  }
+]
+```
+
+```json Error - Doctor Not Found
+{
+  "error": "No eres un médico registrado en el sistema"
+}
+```
+</ResponseExample>
+
+## Filtering Examples
+
+### Today's Appointments
+```javascript
+const today = new Date().toISOString().split('T')[0];
+const todayAppointments = await getDoctorAppointments(doctorId, today);
+```
+
+### This Week's Schedule
+```javascript
+const getWeekSchedule = async (doctorUserId) => {
+  const appointments = await getDoctorAppointments(doctorUserId);
+  
+  const weekStart = new Date();
+  const weekEnd = new Date();
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  
+  return appointments.filter(apt => {
+    const [day, month, year] = apt.fecha_formateada.split('/');
+    const aptDate = new Date(`${year}-${month}-${day}`);
+    return aptDate >= weekStart && aptDate <= weekEnd;
+  });
+};
+```
+
+### Group by Status
+```javascript
+const groupByStatus = (appointments) => {
+  return appointments.reduce((groups, apt) => {
+    const status = apt.estado;
+    if (!groups[status]) groups[status] = [];
+    groups[status].push(apt);
+    return groups;
+  }, {});
+};
+
+const grouped = groupByStatus(appointments);
+console.log(`Pending: ${grouped.PENDIENTE?.length || 0}`);
+console.log(`Confirmed: ${grouped.CONFIRMADA?.length || 0}`);
+console.log(`Completed: ${grouped.FINALIZADA?.length || 0}`);
+```
+
+## Appointment States
+
+| State | Description | Actions Available |
+|-------|-------------|------------------|
+| `PENDIENTE` | Newly created, awaiting confirmation | Confirm, Cancel |
+| `CONFIRMADA` | Verified by staff or system | Attend, Cancel |
+| `FINALIZADA` | Completed with medical notes | View History |
+| `CANCELADA` | Cancelled by patient or doctor | None |
+
+## Use Cases
+
+### Daily Dashboard
+Display doctor's schedule for the current day:
+
+```javascript
+const DoctorDashboard = ({ doctorUserId }) => {
+  const [appointments, setAppointments] = useState([]);
+  
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    getDoctorAppointments(doctorUserId, today)
+      .then(setAppointments);
+  }, [doctorUserId]);
+  
+  return (
+    <div>
+      <h2>Today's Schedule</h2>
+      {appointments.map(apt => (
+        <AppointmentCard key={apt.id_cita} appointment={apt} />
+      ))}
+    </div>
+  );
+};
+```
+
+### Patient History Access
+Use the `id_paciente` field to fetch complete patient history:
+
+```javascript
+const viewPatientHistory = async (id_paciente) => {
+  const response = await fetch(
+    `/api/medico/paciente/${id_paciente}/historial`,
+    { headers: { 'Authorization': `Bearer ${token}` } }
+  );
+  return await response.json();
+};
+```
+
+## Notes
+
+- Requires authentication (doctor must be logged in)
+- The `id_usuario` parameter is the doctor's user ID, not their doctor ID
+- Without a date filter, returns appointments from today onwards
+- Appointments are sorted by date/time in ascending order
+- Patient names are retrieved from the PACIENTES profile table, falling back to USUARIOS if profile is incomplete
+- The `notas_medicas` field is only populated after the appointment is attended using the [Attend Appointment](/api/appointments/attend) endpoint

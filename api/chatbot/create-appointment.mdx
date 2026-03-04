@@ -1,0 +1,205 @@
+---
+title: "Create Chatbot Appointment"
+api: "POST /api/chatbot/cita"
+description: "Book an appointment through the chatbot interface with simple name, date, and time parameters"
+---
+
+## Overview
+
+This endpoint allows users to create appointments (citas) through the chatbot conversation flow. It validates the required booking information and stores the appointment in the database.
+
+<Note>
+This is the chatbot-specific appointment creation endpoint. It differs from the main appointments API by using simplified Spanish field names and chatbot-style responses.
+</Note>
+
+## Authentication
+
+This endpoint does not require authentication - appointments can be created anonymously through the chatbot.
+
+## Request Body
+
+<ParamField body="nombre" type="string" required>
+  The patient's name for the appointment.
+  
+  **Example:** "María García"
+</ParamField>
+
+<ParamField body="dia" type="string" required>
+  The appointment date. Can be in any string format (e.g., "15 de marzo", "2024-03-15").
+  
+  **Examples:**
+  - "15 de marzo"
+  - "2024-03-15"
+  - "Lunes 15"
+</ParamField>
+
+<ParamField body="hora" type="string" required>
+  The appointment time. Can be in any string format.
+  
+  **Examples:**
+  - "10:00 AM"
+  - "14:30"
+  - "2 de la tarde"
+</ParamField>
+
+## Response
+
+<ResponseField name="answer" type="string">
+  A confirmation message in chatbot style, including the appointment details.
+</ResponseField>
+
+## Example Usage
+
+### Successful Appointment Creation
+
+```bash Request
+curl -X POST https://api.vitafem.com/api/chatbot/cita \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "María García",
+    "dia": "15 de marzo",
+    "hora": "10:00 AM"
+  }'
+```
+
+```json Response
+{
+  "answer": "¡Cita registrada con éxito! 🎉\nTe espero el **15 de marzo** a las **10:00 AM**."
+}
+```
+
+### Missing Required Fields
+
+```bash Request
+curl -X POST https://api.vitafem.com/api/chatbot/cita \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "María García"
+  }'
+```
+
+```json Response
+{
+  "answer": "Faltan datos para agendar la cita.\nDebes enviar: **nombre, día y hora**."
+}
+```
+
+### Complete Chatbot Conversation Flow
+
+Here's a typical conversation flow for booking an appointment:
+
+```json Step 1: User initiates
+POST /api/chatbot/message
+{
+  "text": "Quiero agendar una cita"
+}
+
+Response:
+{
+  "answer": "Perfecto 🗓️\nDime tu **nombre**, **día** y **hora** para la cita."
+}
+```
+
+```json Step 2: User provides details
+POST /api/chatbot/cita
+{
+  "nombre": "María García",
+  "dia": "15 de marzo",
+  "hora": "10:00 AM"
+}
+
+Response:
+{
+  "answer": "¡Cita registrada con éxito! 🎉\nTe espero el **15 de marzo** a las **10:00 AM**."
+}
+```
+
+## Validation Rules
+
+The endpoint validates incoming data using Laravel's validator:
+
+<ParamField body="nombre" type="string">
+  - **Required:** Yes
+  - **Type:** String
+  - **Validation:** Must be present and non-empty
+</ParamField>
+
+<ParamField body="dia" type="string">
+  - **Required:** Yes
+  - **Type:** String
+  - **Validation:** Must be present and non-empty
+  - **Note:** No date format validation - accepts any string
+</ParamField>
+
+<ParamField body="hora" type="string">
+  - **Required:** Yes
+  - **Type:** String
+  - **Validation:** Must be present and non-empty
+  - **Note:** No time format validation - accepts any string
+</ParamField>
+
+<Warning>
+This endpoint does not validate date/time formats or check for scheduling conflicts. It stores the appointment data as-is in the database.
+</Warning>
+
+## Database Storage
+
+Appointments are stored in the `citas` table with the following structure:
+
+```sql
+CREATE TABLE citas (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  nombre VARCHAR(255) NOT NULL,
+  dia VARCHAR(255) NOT NULL,
+  hora VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+)
+```
+
+## Use Cases
+
+### 1. Chatbot Interface
+Integrate this endpoint in a conversational UI where users naturally provide appointment details through chat messages.
+
+### 2. Voice Assistants
+The flexible string format for date/time makes this ideal for voice-based booking systems that need to accept natural language input.
+
+### 3. Quick Booking Forms
+Use in simplified booking forms where users type dates and times in their preferred format.
+
+## Response Format
+
+All responses follow the chatbot message pattern:
+- **Success:** Celebratory message with appointment confirmation
+- **Validation Error:** Friendly reminder of required fields
+- **Markdown:** Bold text for dates and times
+- **Emojis:** Visual feedback (🎉 for success)
+
+## Implementation Details
+
+**Model:** Uses the `Cita` Eloquent model  
+**Validation:** Laravel Validator with Spanish field names  
+**Response Style:** Chatbot-friendly messages with emojis and markdown
+
+<Info>
+The appointment is created immediately without requiring admin approval. Consider adding a status field if you need approval workflows.
+</Info>
+
+## Error Handling
+
+The endpoint handles two error scenarios:
+
+1. **Validation Failure:** Returns user-friendly message listing required fields
+2. **Database Error:** Would return a 500 error (not explicitly handled in controller)
+
+## Related Endpoints
+
+- [Send Chatbot Message](/api/chatbot/message) - Process chatbot messages and receive responses
+- [List Appointments](/api/appointments/list) - View all scheduled appointments
+
+## Source Code Reference
+
+**Controller:** `app/Http/Controllers/ChatbotController.php:107`  
+**Route:** `routes/api.php:33`  
+**Model:** `app/Models/Cita.php`

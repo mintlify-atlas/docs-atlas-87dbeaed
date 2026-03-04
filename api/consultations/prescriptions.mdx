@@ -1,0 +1,258 @@
+---
+title: 'Prescription System'
+description: 'Understanding the VitaFem prescription (receta) data structure and workflow'
+---
+
+## Overview
+
+The VitaFem prescription system uses a three-table structure to manage medical prescriptions:
+
+- **RECETAS**: Prescription header containing consultation reference and date
+- **DETALLE_RECETAS**: Individual medication entries with dosage details
+- **CONSULTAS**: Links prescriptions to the medical consultation
+
+This normalized structure allows multiple medications per prescription while maintaining data integrity.
+
+## Database Schema
+
+### RECETAS Table
+
+The prescription header table.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| ID_RECETA | INTEGER | Primary key (auto-generated via SEQ_RECETAS) |
+| ID_CONSULTA | INTEGER | Foreign key to CONSULTAS table |
+| FECHA | TIMESTAMP | Prescription creation date |
+
+### DETALLE_RECETAS Table
+
+Stores individual medication details.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| ID_DETALLE | INTEGER | Primary key (auto-generated via SEQ_DETALLE_RECETAS) |
+| ID_RECETA | INTEGER | Foreign key to RECETAS table |
+| MEDICAMENTO | VARCHAR | Medication name |
+| DOSIS | VARCHAR | Dosage (e.g., "500mg", "2 tablets") |
+| FRECUENCIA | VARCHAR | Frequency (e.g., "Every 8 hours", "Twice daily") |
+| DURACION | VARCHAR | Duration (e.g., "7 days", "2 weeks") |
+
+## Data Relationships
+
+```
+CONSULTAS (1) ──→ (0..1) RECETAS (1) ──→ (0..*) DETALLE_RECETAS
+```
+
+- One consultation may have zero or one prescription
+- One prescription can have multiple medication details
+- Not all consultations require prescriptions
+
+## Creating Prescriptions
+
+Prescriptions are created automatically when medications are included in the consultation creation request.
+
+### Example: Consultation with Prescription
+
+```json
+PUT /api/medico/citas/123/atender
+
+{
+  "peso": 68,
+  "altura": 170,
+  "temperatura": 37.2,
+  "presion_arterial": "130/85",
+  "sintomas": "Infección respiratoria superior",
+  "exploracion": "Faringe eritematosa, amígdalas inflamadas",
+  "diagnostico": "Faringitis aguda",
+  "indicaciones": "Reposo, hidratación abundante, evitar irritantes",
+  "medicamentos": [
+    {
+      "medicamento": "Amoxicilina",
+      "dosis": "500mg",
+      "frecuencia": "Cada 8 horas",
+      "duracion": "7 días"
+    },
+    {
+      "medicamento": "Ibuprofeno",
+      "dosis": "400mg",
+      "frecuencia": "Cada 6-8 horas si hay dolor",
+      "duracion": "5 días"
+    },
+    {
+      "medicamento": "Loratadina",
+      "dosis": "10mg",
+      "frecuencia": "Una vez al día",
+      "duracion": "5 días"
+    }
+  ]
+}
+```
+
+### Backend Processing
+
+When the above request is processed:
+
+1. **Consultation Created**:
+   ```sql
+   INSERT INTO CONSULTAS (
+     ID_CITAS, ID_PACIENTE, PESO, ALTURA, 
+     TEMPERATURA, PRESION_ARTERIAL, 
+     SINTOMAS_SUBJETIVOS, EXPLORACION_FISICA,
+     DIAGNOSTICO, TRATAMIENTO_INDICACIONES
+   ) VALUES (...);
+   ```
+
+2. **Prescription Header Created**:
+   ```sql
+   INSERT INTO RECETAS (ID_CONSULTA, FECHA) 
+   VALUES (consulta_id, CURRENT_TIMESTAMP);
+   ```
+
+3. **Medication Details Created** (one insert per medication):
+   ```sql
+   INSERT INTO DETALLE_RECETAS (
+     ID_RECETA, MEDICAMENTO, DOSIS, FRECUENCIA, DURACION
+   ) VALUES (receta_id, 'Amoxicilina', '500mg', 'Cada 8 horas', '7 días');
+   ```
+
+## Retrieving Prescriptions
+
+Prescriptions are included when retrieving:
+- Patient appointment history
+- Patient medical history
+- Individual consultation details
+
+### Example: Patient History Response
+
+```json
+GET /api/medico/paciente/456/historial
+
+[
+  {
+    "fecha_formateada": "01/03/2026",
+    "medico": "Dr. María González",
+    "motivo": "Control de rutina",
+    "consulta_medica": {
+      "peso": 68,
+      "presion": "130/85",
+      "diagnostico": "Faringitis aguda",
+      "indicaciones": "Reposo, hidratación abundante",
+      "medicamentos": [
+        {
+          "medicamento": "Amoxicilina",
+          "dosis": "500mg",
+          "frecuencia": "Cada 8 horas",
+          "duracion": "7 días"
+        },
+        {
+          "medicamento": "Ibuprofeno",
+          "dosis": "400mg",
+          "frecuencia": "Cada 6-8 horas si hay dolor",
+          "duracion": "5 días"
+        }
+      ]
+    }
+  }
+]
+```
+
+## Model Relationships
+
+### Consulta Model
+
+```php
+class Consulta extends Model
+{
+    protected $table = 'CONSULTAS';
+    protected $primaryKey = 'ID_CONSULTA';
+    
+    public function receta()
+    {
+        return $this->hasOne(Receta::class, 'ID_CONSULTA', 'ID_CONSULTA');
+    }
+}
+```
+
+### Receta Model
+
+```php
+class Receta extends Model
+{
+    protected $table = 'RECETAS';
+    protected $primaryKey = 'ID_RECETA';
+    
+    public function consulta()
+    {
+        return $this->belongsTo(Consulta::class, 'ID_CONSULTA', 'ID_CONSULTA');
+    }
+    
+    public function detalles()
+    {
+        return $this->hasMany(DetalleReceta::class, 'ID_RECETA', 'ID_RECETA');
+    }
+}
+```
+
+### DetalleReceta Model
+
+```php
+class DetalleReceta extends Model
+{
+    protected $table = 'DETALLE_RECETAS';
+    protected $primaryKey = 'ID_DETALLE';
+    
+    public function receta()
+    {
+        return $this->belongsTo(Receta::class, 'ID_RECETA', 'ID_RECETA');
+    }
+}
+```
+
+## Oracle-Specific Handling
+
+The codebase includes special handling for Oracle database:
+
+- **Uppercase column names**: All table columns use uppercase (e.g., `ID_RECETA`, `MEDICAMENTO`)
+- **Sequences for auto-increment**: Uses Oracle sequences (`SEQ_RECETAS`, `SEQ_DETALLE_RECETAS`)
+- **Case-insensitive queries**: The controller uses fallback queries with both uppercase and lowercase column names
+
+### Example from Controller
+
+```php
+// Oracle-safe query with case fallback
+$receta = Receta::where('ID_CONSULTA', $idConsultaReal)
+    ->orWhere('id_consulta', $idConsultaReal)
+    ->first();
+
+if ($receta) {
+    $idRecetaReal = $receta->ID_RECETA ?? $receta->id_receta;
+    $medicamentos = DetalleReceta::where('ID_RECETA', $idRecetaReal)
+        ->orWhere('id_receta', $idRecetaReal)
+        ->get();
+}
+```
+
+## Best Practices
+
+1. **Always use transactions**: Prescription creation is wrapped in database transactions to ensure data consistency
+
+2. **Optional prescriptions**: Not all consultations require medications - the system handles empty `medicamentos` arrays gracefully
+
+3. **Validation**: Ensure all required fields are provided for each medication:
+   - `medicamento` (name)
+   - `dosis` (dosage)
+   - `frecuencia` (frequency)
+   - `duracion` (duration)
+
+4. **Error handling**: The controller uses try-catch blocks and rollback on failure:
+   ```php
+   try {
+       DB::beginTransaction();
+       // Create prescription...
+       DB::commit();
+   } catch (\Exception $e) {
+       DB::rollBack();
+       return response()->json(['error' => $e->getMessage()], 500);
+   }
+   ```

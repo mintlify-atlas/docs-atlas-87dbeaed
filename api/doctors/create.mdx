@@ -1,0 +1,184 @@
+---
+title: 'Create Doctor'
+api: 'POST /api/admin/medicos'
+description: 'Register a new doctor in the system with credentials and medical information'
+---
+
+## Overview
+
+This endpoint creates a new doctor account, including:
+- User credentials for login
+- Medical professional information (specialty, license number)
+- Default weekly schedule (Monday-Friday, 9 AM - 5 PM)
+- Automatic role assignment
+
+<Warning>
+  This endpoint requires admin authentication. Include a valid Sanctum token in the Authorization header.
+</Warning>
+
+<RequestExample>
+```bash cURL
+curl --request POST \
+  --url https://api.vitafem.com/api/admin/medicos \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "nombre": "Dra. Patricia Hernández",
+    "correo": "patricia.hernandez@vitafem.com",
+    "password": "secure123",
+    "especialidad": "Ginecología",
+    "cedula": "12345678"
+  }'
+```
+
+```javascript JavaScript
+const createDoctor = async (doctorData) => {
+  const response = await fetch('https://api.vitafem.com/api/admin/medicos', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      nombre: doctorData.nombre,
+      correo: doctorData.correo,
+      password: doctorData.password,
+      especialidad: doctorData.especialidad,
+      cedula: doctorData.cedula
+    })
+  });
+
+  return await response.json();
+};
+```
+
+```python Python
+import requests
+
+headers = {
+    'Authorization': f'Bearer {token}',
+    'Content-Type': 'application/json'
+}
+
+data = {
+    'nombre': 'Dra. Patricia Hernández',
+    'correo': 'patricia.hernandez@vitafem.com',
+    'password': 'secure123',
+    'especialidad': 'Ginecología',
+    'cedula': '12345678'
+}
+
+response = requests.post(
+    'https://api.vitafem.com/api/admin/medicos',
+    headers=headers,
+    json=data
+)
+
+print(response.json())
+```
+</RequestExample>
+
+## Request Body
+
+<ParamField body="nombre" type="string" required>
+  Full name of the doctor (will be displayed in patient-facing interfaces)
+</ParamField>
+
+<ParamField body="correo" type="string" required>
+  Email address for login credentials. Must be unique in the system.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Login password. Minimum 6 characters. Will be encrypted using bcrypt.
+</ParamField>
+
+<ParamField body="especialidad" type="string" required>
+  Medical specialty (e.g., "Ginecología", "Obstetricia", "Medicina General", "Nutrición")
+</ParamField>
+
+<ParamField body="cedula" type="string" required>
+  Professional license number (cédula profesional) for verification purposes
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  Success message confirming doctor registration
+</ResponseField>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Médico registrado exitosamente"
+}
+```
+
+```json Error - Duplicate Email
+{
+  "error": "Error al registrar médico: SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'patricia.hernandez@vitafem.com' for key 'USUARIOS.CORREO'"
+}
+```
+
+```json Error - Validation Failed
+{
+  "message": "The given data was invalid.",
+  "errors": {
+    "correo": [
+      "The correo has already been taken."
+    ],
+    "password": [
+      "The password must be at least 6 characters."
+    ]
+  }
+}
+```
+</ResponseExample>
+
+## What Happens Behind the Scenes
+
+When you create a doctor, the system automatically:
+
+1. **Creates a User Account** in the USUARIOS table with encrypted password
+2. **Assigns Medical Role** (ID_ROLES = 2) in the USUARIO_ROL table
+3. **Creates Doctor Profile** in the MEDICO table with specialty and license info
+4. **Generates Default Schedule** - Monday through Friday, 9:00 AM to 5:00 PM, with 60-minute appointment slots
+5. **Sets Auto-Generated Bio** - "Especialista en [specialty] de VitaFem."
+
+### Default Schedule Created
+
+```json
+[
+  {"DIA_SEMANA": 1, "HORA_INICIO": "09:00", "HORA_FIN": "17:00", "DURACION_CITA": 60},
+  {"DIA_SEMANA": 2, "HORA_INICIO": "09:00", "HORA_FIN": "17:00", "DURACION_CITA": 60},
+  {"DIA_SEMANA": 3, "HORA_INICIO": "09:00", "HORA_FIN": "17:00", "DURACION_CITA": 60},
+  {"DIA_SEMANA": 4, "HORA_INICIO": "09:00", "HORA_FIN": "17:00", "DURACION_CITA": 60},
+  {"DIA_SEMANA": 5, "HORA_INICIO": "09:00", "HORA_FIN": "17:00", "DURACION_CITA": 60}
+]
+```
+
+The doctor can later customize their schedule using the [Update Schedule](/api/doctors/update-schedule) endpoint.
+
+## Error Handling
+
+The endpoint uses database transactions to ensure data consistency. If any step fails, all changes are rolled back:
+
+```javascript
+try {
+  const result = await createDoctor(doctorData);
+  console.log('Doctor created successfully!');
+} catch (error) {
+  if (error.message.includes('Duplicate entry')) {
+    alert('This email is already registered');
+  } else {
+    console.error('Failed to create doctor:', error);
+  }
+}
+```
+
+## Notes
+
+- Requires authentication with admin privileges
+- Email addresses must be unique across all users
+- Password is automatically hashed using Laravel's bcrypt
+- The system uses database transactions - if creation fails, no partial data is saved
+- Doctors can immediately log in and customize their schedule after creation

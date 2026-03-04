@@ -1,0 +1,212 @@
+---
+title: 'Get Available Slots'
+api: 'GET /api/horarios-disponibles'
+description: 'Check available time slots for a doctor on a specific date'
+---
+
+## Overview
+
+This endpoint calculates available time slots for a specific doctor on a given date. It considers the doctor's working schedule, appointment duration, and existing bookings to return only free time slots.
+
+<Info>
+  This is a **public endpoint** that allows patients to check availability before booking an appointment.
+</Info>
+
+## Query Parameters
+
+<ParamField query="id_medico" type="integer" required>
+  Doctor's ID from the `MEDICOS` table. Retrieve from the [Get Doctors](/api/doctors/list) endpoint.
+</ParamField>
+
+<ParamField query="fecha" type="string" required>
+  Date to check availability in `YYYY-MM-DD` format (e.g., "2026-03-15")
+</ParamField>
+
+## Response Format
+
+Returns an array of available time slots in `HH:mm` format.
+
+```json
+[
+  "09:00",
+  "10:00",
+  "11:00",
+  "14:00",
+  "15:00",
+  "16:00"
+]
+```
+
+<Note>
+  An empty array `[]` means the doctor doesn't work on that day or all slots are fully booked.
+</Note>
+
+## Request Example
+
+```bash
+curl -X GET "https://api.vitafem.com/api/horarios-disponibles?id_medico=5&fecha=2026-03-15" \
+  -H "Accept: application/json"
+```
+
+## Implementation Logic
+
+### Step 1: Determine Day of Week
+
+The system converts the date to ISO day of week (1=Monday, 7=Sunday):
+
+```php
+$fecha = Carbon::parse($fechaString);
+$diaSemana = $fecha->dayOfWeekIso;
+```
+
+### Step 2: Retrieve Doctor's Schedule
+
+Queries the `HORARIOS_MEDICO` table to find the doctor's working hours for that day:
+
+```php
+HorarioMedico::where('ID_MEDICO', $idMedico)
+             ->where('DIA_SEMANA', $diaSemana)
+             ->first();
+```
+
+If no schedule exists, the endpoint returns an empty array (doctor doesn't work that day).
+
+### Step 3: Generate Time Slots
+
+Creates time slots based on:
+- `HORA_INICIO` - Start time (e.g., "09:00")
+- `HORA_FIN` - End time (e.g., "17:00")  
+- `DURACION_CITA` - Appointment duration in minutes (e.g., 60)
+
+```php
+while ($horaInicio < $horaFin) {
+    $slots[] = $horaInicio->format('H:i');
+    $horaInicio->addMinutes($duracionMinutos);
+}
+```
+
+**Example:** If a doctor works 09:00-17:00 with 60-minute appointments, the slots will be:
+```json
+["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]
+```
+
+### Step 4: Find Occupied Slots
+
+Queries the `CITAS` table for existing appointments on that date:
+
+```php
+Cita::where('ID_MEDICO', $idMedico)
+    ->whereDate('FECHA_HORA', $fechaString)
+    ->where('ESTADO', '!=', 'CANCELADA')
+    ->get();
+```
+
+<Warning>
+  Only non-cancelled appointments (`ESTADO != 'CANCELADA'`) are counted as occupied. Cancelled appointments free up the time slot.
+</Warning>
+
+### Step 5: Calculate Available Slots
+
+Filters out occupied times from the generated slots:
+
+```php
+$horasDisponibles = array_diff($slots, $horasOcupadas);
+```
+
+## Response Examples
+
+### Doctor Works That Day
+
+```json
+[
+  "09:00",
+  "11:00",
+  "14:00",
+  "16:00"
+]
+```
+
+### Doctor Doesn't Work That Day
+
+```json
+[]
+```
+
+### All Slots Booked
+
+```json
+[]
+```
+
+## Error Responses
+
+### Missing Parameters (400)
+
+```json
+{
+  "error": "Faltan parámetros"
+}
+```
+
+### Internal Error (500)
+
+```json
+{
+  "error": "Error interno: Column not found: 1054 Unknown column",
+  "linea": 85
+}
+```
+
+<Info>
+  The error response includes the line number (`linea`) for debugging purposes.
+</Info>
+
+## Typical Appointment Durations
+
+| Duration | Use Case |
+|----------|----------|
+| 30 min   | Quick follow-up consultations |
+| 60 min   | Standard medical consultations |
+| 90 min   | Initial assessments or complex cases |
+| 120 min  | Specialized procedures |
+
+## Working Schedule Example
+
+```json
+// Doctor's schedule in HORARIOS_MEDICO table
+{
+  "ID_MEDICO": 5,
+  "DIA_SEMANA": 1,  // Monday
+  "HORA_INICIO": "09:00",
+  "HORA_FIN": "17:00",
+  "DURACION_CITA": 60
+}
+```
+
+This creates 8 slots: 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Appointment Booking" icon="calendar">
+    Display available times in the booking form before the patient selects a slot
+  </Card>
+  
+  <Card title="Rescheduling" icon="clock-rotate-left">
+    Show alternatives when a patient wants to change their appointment
+  </Card>
+  
+  <Card title="Staff Planning" icon="users">
+    Help administrative staff identify busy periods and optimal booking times
+  </Card>
+  
+  <Card title="Capacity Analysis" icon="chart-line">
+    Monitor doctor availability and booking patterns
+  </Card>
+</CardGroup>
+
+## Related Endpoints
+
+- [Create Appointment](/api/appointments/create) - Book a specific time slot
+- [Get Doctors](/api/doctors/list) - List all available doctors
+- [Doctor Schedule](/api/doctors/schedule) - View complete weekly schedule

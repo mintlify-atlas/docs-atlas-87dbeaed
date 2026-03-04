@@ -1,0 +1,41 @@
+---
+title: "Delete Product"
+api: "DELETE /api/productos/{id}"
+description: "Delete a product from the catalog"
+---
+
+## Authentication
+
+This endpoint requires authentication using Laravel Sanctum. Include the bearer token in the Authorization header.
+
+```bash
+Authorization: Bearer {token}
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The ID of the product to delete
+</ParamField>
+
+## Response
+
+Returns HTTP 204 No Content on successful deletion.
+
+## Example Request
+
+```bash
+curl -X DELETE https://api.vitafem.com/api/productos/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json"
+```
+
+## Example Response
+
+No content (HTTP 204)
+
+## Notes
+
+- The product's image will be automatically deleted from storage
+- This operation is permanent and cannot be undone
+- Returns 404 if the product doesn't exist

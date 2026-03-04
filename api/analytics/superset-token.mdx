@@ -1,0 +1,339 @@
+---
+title: "Get Superset Guest Token"
+api: "GET /api/preset-token"
+description: "Generate a guest token for embedding Superset/Preset dashboards with secure, limited-time access"
+---
+
+## Overview
+
+This endpoint generates a guest token for embedding Apache Superset (Preset) dashboards in your application. The token provides secure, temporary access to specific dashboards without requiring users to log in to Superset directly.
+
+<Note>
+This endpoint supports both local Superset installations and Preset cloud hosting. The authentication flow automatically adapts based on your configuration.
+</Note>
+
+## Authentication
+
+This endpoint requires authentication via Laravel Sanctum:
+
+```bash
+Authorization: Bearer {your-api-token}
+```
+
+The endpoint is protected and only accessible to authenticated users (see `routes/api.php:130`).
+
+## Configuration
+
+Before using this endpoint, configure these environment variables:
+
+```env .env
+# Superset Configuration
+SUPERSET_DRIVER=preset              # 'preset' or 'local'
+SUPERSET_URL=https://your-workspace.us1a.app.preset.io
+SUPERSET_DASHBOARD_ID=your-dashboard-id
+
+# Preset API Credentials (required if SUPERSET_DRIVER=preset)
+PRESET_API_KEY=your-api-key
+PRESET_API_SECRET=your-api-secret
+```
+
+## Response
+
+<ResponseField name="token" type="string">
+  The guest token for embedding the dashboard. This token is short-lived and grants access only to the specified dashboard.
+</ResponseField>
+
+<ResponseField name="supersetDomain" type="string">
+  The full Superset/Preset URL (including protocol). Use this as the base URL when embedding the dashboard.
+  
+  **Example:** `https://4169f60d.us1a.app.preset.io`
+</ResponseField>
+
+<ResponseField name="dashboardId" type="string">
+  The dashboard ID that this token grants access to.
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if token generation fails (only present on error).
+</ResponseField>
+
+## Example Usage
+
+### Successful Token Generation
+
+```bash Request
+curl -X GET https://api.vitafem.com/api/preset-token \
+  -H "Authorization: Bearer YOUR_API_TOKEN"
+```
+
+```json Response
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "supersetDomain": "https://4169f60d.us1a.app.preset.io",
+  "dashboardId": "abc-123-def-456"
+}
+```
+
+### Error Response
+
+```json Response (500 Error)
+{
+  "error": "Fallo Auth Preset: Invalid credentials"
+}
+```
+
+## Embedding the Dashboard
+
+Once you receive the token, use it to embed the dashboard in your frontend:
+
+### React Example
+
+```jsx React Component
+import { embedDashboard } from '@superset-ui/embedded-sdk';
+import { useEffect } from 'react';
+
+function AnalyticsDashboard() {
+  useEffect(() => {
+    async function loadDashboard() {
+      // Fetch token from your backend
+      const response = await fetch('/api/preset-token', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const { token, supersetDomain, dashboardId } = await response.json();
+
+      // Embed the dashboard
+      embedDashboard({
+        id: dashboardId,
+        supersetDomain: supersetDomain,
+        mountPoint: document.getElementById('dashboard'),
+        fetchGuestToken: () => token,
+        dashboardUiConfig: {
+          hideTitle: false,
+          hideChartControls: false,
+        },
+      });
+    }
+    
+    loadDashboard();
+  }, []);
+
+  return <div id="dashboard" style={{ width: '100%', height: '800px' }} />;
+}
+```
+
+### HTML/JavaScript Example
+
+```html Vanilla JavaScript
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://unpkg.com/@superset-ui/embedded-sdk"></script>
+</head>
+<body>
+  <div id="dashboard"></div>
+  
+  <script>
+    async function loadDashboard() {
+      // Fetch token
+      const response = await fetch('https://api.vitafem.com/api/preset-token', {
+        headers: {
+          'Authorization': 'Bearer YOUR_TOKEN'
+        }
+      });
+      const { token, supersetDomain, dashboardId } = await response.json();
+
+      // Embed dashboard
+      supersetEmbeddedSdk.embedDashboard({
+        id: dashboardId,
+        supersetDomain: supersetDomain,
+        mountPoint: document.getElementById('dashboard'),
+        fetchGuestToken: () => token,
+      });
+    }
+    
+    loadDashboard();
+  </script>
+</body>
+</html>
+```
+
+## Authentication Flow
+
+The endpoint follows a two-step authentication process:
+
+### 1. Preset API Authentication
+
+For Preset-hosted Superset (`SUPERSET_DRIVER=preset`):
+
+```bash
+POST https://api.app.preset.io/v1/auth/
+{
+  "name": "your-api-key",
+  "secret": "your-api-secret"
+}
+```
+
+Returns an access token used in step 2.
+
+### 2. Guest Token Generation
+
+```bash
+POST {supersetDomain}/api/v1/security/guest_token/
+Headers:
+  Authorization: Bearer {access_token}
+  Referer: https://vetpetfront.onrender.com
+  Content-Type: application/json
+
+Body:
+{
+  "user": {
+    "username": "guest",
+    "first_name": "VetPet",
+    "last_name": "User"
+  },
+  "resources": [{
+    "type": "dashboard",
+    "id": "your-dashboard-id"
+  }],
+  "rls": []
+}
+```
+
+<Warning>
+The `Referer` header is critical for Preset's security. It must match the domain configured in your Preset workspace's allowed domains list.
+</Warning>
+
+## Security Considerations
+
+### Referer Header
+
+The endpoint hardcodes the referer header to `https://vetpetfront.onrender.com` (see `SupersetController.php:23`). This must match your Preset workspace configuration:
+
+1. Log in to Preset
+2. Navigate to Settings > Security
+3. Add your frontend domain to "Allowed Domains"
+4. Include the protocol (https://)
+
+### Token Expiration
+
+Guest tokens are short-lived. When a token expires:
+- Superset will automatically request a new token
+- Your frontend should implement token refresh logic
+- Consider caching tokens for their validity period
+
+### Resource Limiting
+
+Guest tokens grant access only to specified resources:
+- **Type:** `dashboard` (not datasets or individual charts)
+- **ID:** Single dashboard ID from configuration
+- **RLS:** Row-level security rules (currently empty array)
+
+<Info>
+To restrict data visibility per user, implement Row-Level Security (RLS) rules in the `rls` array parameter.
+</Info>
+
+## Row-Level Security (RLS)
+
+You can restrict data visibility by passing RLS rules:
+
+```php Custom RLS Example
+'rls' => [
+  [
+    'clause' => "user_id = '{$userId}"
+  ]
+]
+```
+
+This filters dashboard data to show only records matching the condition.
+
+## Logging
+
+The endpoint logs important events:
+
+```
+🌍 MODO: preset
+🔗 REFERER ENVIADO: https://vetpetfront.onrender.com
+❌ EXCEPCIÓN: Fallo Auth Preset: Invalid credentials
+```
+
+Check Laravel logs for troubleshooting:
+
+```bash
+tail -f storage/logs/laravel.log
+```
+
+## Error Scenarios
+
+### Missing Credentials
+
+```json
+{
+  "error": "Credenciales vacías."
+}
+```
+
+**Solution:** Set `PRESET_API_KEY` and `PRESET_API_SECRET` in your `.env` file.
+
+### Authentication Failure
+
+```json
+{
+  "error": "Fallo Auth Preset: {error details}"
+}
+```
+
+**Solution:** Verify your API credentials are correct.
+
+### Guest Token Failure
+
+```json
+{
+  "error": "Fallo Guest Token: {error details}"
+}
+```
+
+**Common causes:**
+- Referer domain not allowed in Preset
+- Invalid dashboard ID
+- Dashboard not shared with guest users
+
+### Local Mode
+
+When `SUPERSET_DRIVER=local`, the endpoint uses a placeholder access token (`'...'`). You'll need to implement proper local authentication.
+
+## Configuration Modes
+
+### Preset Cloud
+
+```env
+SUPERSET_DRIVER=preset
+SUPERSET_URL=https://your-workspace.us1a.app.preset.io
+PRESET_API_KEY=your-key
+PRESET_API_SECRET=your-secret
+```
+
+Uses Preset API authentication.
+
+### Self-Hosted Superset
+
+```env
+SUPERSET_DRIVER=local
+SUPERSET_URL=https://your-superset-instance.com
+```
+
+<Warning>
+Local mode currently uses a placeholder token. Implement proper authentication for production use.
+</Warning>
+
+## Related Resources
+
+- [Superset Embedded SDK Documentation](https://superset.apache.org/docs/installation/embedded-sdk)
+- [Preset Guest Token API](https://preset.io/docs/guest-token-authentication)
+
+## Source Code Reference
+
+**Controller:** `app/Http/Controllers/SupersetController.php:11`  
+**Routes:** `routes/api.php:29` (public) and `routes/api.php:130` (authenticated)  
+**Config:** `config/services.php` (superset configuration)

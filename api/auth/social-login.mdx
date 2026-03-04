@@ -1,0 +1,193 @@
+---
+title: 'Social Login (OAuth)'
+api: 'GET /api/auth/{provider}/redirect'
+description: 'Authenticate users via Facebook or Google OAuth providers'
+---
+
+## Overview
+
+The VitaFem API supports OAuth authentication through Facebook and Google. The process involves two endpoints:
+
+1. **Redirect endpoint**: Initiates the OAuth flow
+2. **Callback endpoint**: Handles the OAuth provider's response
+
+## Redirect Endpoint
+
+### Endpoint
+
+<ParamField path="method" type="string" required>
+  GET
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  /api/auth/{provider}/redirect
+</ParamField>
+
+### Path Parameters
+
+<ParamField path="provider" type="string" required>
+  OAuth provider name. Supported values: `facebook`, `google`
+</ParamField>
+
+### Authentication
+
+This endpoint is public and does not require authentication.
+
+### Response
+
+Redirects to the OAuth provider's authorization page where the user can grant permission.
+
+### Example Request
+
+```bash Facebook Redirect
+curl -X GET https://api.vitafem.com/api/auth/facebook/redirect
+```
+
+```bash Google Redirect
+curl -X GET https://api.vitafem.com/api/auth/google/redirect
+```
+
+## Callback Endpoint
+
+### Endpoint
+
+<ParamField path="method" type="string" required>
+  GET
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  /api/auth/{provider}/callback
+</ParamField>
+
+### Path Parameters
+
+<ParamField path="provider" type="string" required>
+  OAuth provider name. Supported values: `facebook`, `google`
+</ParamField>
+
+### Authentication
+
+This endpoint is called automatically by the OAuth provider after user authorization.
+
+### Query Parameters
+
+The OAuth provider automatically includes authorization codes and state parameters.
+
+### Behavior
+
+1. Retrieves user information from the OAuth provider
+2. Searches for existing user by email
+3. Creates new user if not found, or links the OAuth provider to existing account
+4. Generates Sanctum authentication token
+5. Redirects to frontend application with token
+
+### Success Redirect
+
+```
+https://vetpetfront.onrender.com/social-login-success?token={token}
+```
+
+### Error Redirect
+
+```
+https://vetpetfront.onrender.com/login?error=social_login_failed
+```
+
+```
+https://vetpetfront.onrender.com/login?error=NoEmailFromFacebook
+```
+
+```
+https://vetpetfront.onrender.com/login?error=no_email
+```
+
+## Implementation Details
+
+### User Creation/Update Logic
+
+- If user exists by email: Links OAuth provider ID to existing account
+- If user doesn't exist: Creates new user with OAuth information
+- Generates random secure password for OAuth users
+- Default role is set to 'user'
+
+### Response Data
+
+After successful authentication, the frontend receives:
+
+<ResponseField name="token" type="string">
+  Sanctum authentication token passed as URL query parameter
+</ResponseField>
+
+## Example Implementation Flow
+
+### Step 1: Initiate OAuth Flow
+
+```javascript Frontend Example
+// Redirect user to OAuth provider
+window.location.href = 'https://api.vitafem.com/api/auth/google/redirect';
+```
+
+### Step 2: Handle Callback
+
+```javascript Frontend Callback Handler
+// On your success page (social-login-success)
+const urlParams = new URLSearchParams(window.location.search);
+const token = urlParams.get('token');
+
+if (token) {
+  // Store token for future requests
+  localStorage.setItem('authToken', token);
+  
+  // Redirect to dashboard or home
+  window.location.href = '/dashboard';
+} else {
+  // Handle error
+  window.location.href = '/login?error=no_token';
+}
+```
+
+### Step 3: Use Token for API Requests
+
+```javascript Using the Token
+fetch('https://api.vitafem.com/api/me', {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/json'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+## OAuth Provider Configuration
+
+### Facebook
+
+- Requests `email` scope explicitly
+- Requires email permission to be granted by user
+- Stores Facebook ID in `facebook_id` field
+
+### Google
+
+- Requests `openid`, `profile`, and `email` scopes
+- Uses Google ID for user identification
+- Stores Google ID in `google_id` field
+
+## Error Handling
+
+| Error | Description | Redirect URL |
+|-------|-------------|-------------|
+| `social_login_failed` | General OAuth failure | `/login?error=social_login_failed` |
+| `NoEmailFromFacebook` | Facebook didn't provide email | `/login?error=NoEmailFromFacebook` |
+| `no_email` | Google didn't provide email | `/login?error=no_email` |
+| `facebook_failed` | Facebook-specific error | `/login?error=facebook_failed` |
+| `google_failed` | Google-specific error | `/login?error=google_failed` |
+
+## Notes
+
+- OAuth authentication uses stateless mode (no session required)
+- All OAuth users receive a randomly generated secure password
+- Email addresses from OAuth providers must be available
+- Users can link multiple OAuth providers to the same account
+- The system automatically handles user creation and provider linking
+- OAuth tokens from providers are not stored; only Sanctum tokens are issued

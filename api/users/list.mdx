@@ -1,0 +1,112 @@
+---
+title: "List Users"
+api: "GET /api/users"
+description: "Retrieve all users with optional role filtering"
+---
+
+## Authentication
+
+This endpoint is public and does not require authentication. It's designed to allow external services (like n8n) to access veterinary clinic information.
+
+## Query Parameters
+
+<ParamField query="role" type="string" optional>
+  Filter users by role. Special handling for 'veterinaria' which queries for partner type.
+  
+  Possible values:
+  - `veterinaria` - Filters for partners with partner_type = 'veterinaria'
+  - `user` - Regular users
+  - `partner` - All partners
+  - `admin` - Administrators
+</ParamField>
+
+## Response
+
+Returns an array of user objects.
+
+<ResponseField name="users" type="array">
+  Array of user objects
+  
+  <ResponseField name="id" type="integer">
+    Unique identifier for the user
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Full name of the user
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    Email address
+  </ResponseField>
+  
+  <ResponseField name="role" type="string">
+    User role (user, partner, admin)
+  </ResponseField>
+  
+  <ResponseField name="partner_type" type="string">
+    Type of partner (e.g., veterinaria). Only present for partner role.
+  </ResponseField>
+  
+  <ResponseField name="phone" type="string">
+    Phone number
+  </ResponseField>
+  
+  <ResponseField name="address" type="string">
+    Physical address
+  </ResponseField>
+  
+  <ResponseField name="latitude" type="number">
+    Geographic latitude coordinate
+  </ResponseField>
+  
+  <ResponseField name="longitude" type="number">
+    Geographic longitude coordinate
+  </ResponseField>
+  
+  <ResponseField name="profile_picture" type="string">
+    URL to profile picture
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+# Get all users
+curl -X GET https://api.vitafem.com/api/users \
+  -H "Accept: application/json"
+
+# Get only veterinary clinics
+curl -X GET "https://api.vitafem.com/api/users?role=veterinaria" \
+  -H "Accept: application/json"
+```
+
+## Example Response
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Veterinaria San José",
+    "email": "info@vetsanjose.com",
+    "role": "partner",
+    "partner_type": "veterinaria",
+    "phone": "+1234567890",
+    "address": "Calle Principal 123",
+    "latitude": 9.9281,
+    "longitude": -84.0907,
+    "profile_picture": "https://api.vitafem.com/storage/users/clinic1.jpg"
+  },
+  {
+    "id": 2,
+    "name": "Dr. María González",
+    "email": "maria@example.com",
+    "role": "user",
+    "partner_type": null,
+    "phone": "+1234567891",
+    "address": null,
+    "latitude": null,
+    "longitude": null,
+    "profile_picture": null
+  }
+]
+```

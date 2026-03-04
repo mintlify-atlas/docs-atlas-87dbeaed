@@ -1,122 +1,149 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "VitaFem Backend",
+  "theme": "almond",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#00A896",
+    "light": "#7BE495",
+    "dark": "#028090"
   },
   "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/AaronMetal1619/VitaFem-Backend"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/AaronMetal1619/VitaFem-Backend"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "authentication"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/architecture",
+              "concepts/database",
+              "concepts/roles-permissions"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "guides/setup",
+              "guides/deployment",
+              "guides/oracle-configuration"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Authentication",
             "pages": [
-              "api-reference/introduction"
+              "api/auth/register",
+              "api/auth/login",
+              "api/auth/logout",
+              "api/auth/social-login",
+              "api/auth/firebase"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Patients",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/patients/list",
+              "api/patients/create",
+              "api/patients/profile",
+              "api/patients/update-profile",
+              "api/patients/medical-history"
+            ]
+          },
+          {
+            "group": "Appointments",
+            "pages": [
+              "api/appointments/list",
+              "api/appointments/create",
+              "api/appointments/available-slots",
+              "api/appointments/my-appointments",
+              "api/appointments/update-status"
+            ]
+          },
+          {
+            "group": "Doctors",
+            "pages": [
+              "api/doctors/list",
+              "api/doctors/create",
+              "api/doctors/appointments",
+              "api/doctors/schedule",
+              "api/doctors/update-schedule"
+            ]
+          },
+          {
+            "group": "Medical Consultations",
+            "pages": [
+              "api/consultations/create",
+              "api/consultations/prescriptions",
+              "api/consultations/patient-history"
+            ]
+          },
+          {
+            "group": "Pets",
+            "pages": [
+              "api/pets/list",
+              "api/pets/create",
+              "api/pets/update",
+              "api/pets/delete"
+            ]
+          },
+          {
+            "group": "Products",
+            "pages": [
+              "api/products/list",
+              "api/products/create",
+              "api/products/update",
+              "api/products/delete"
+            ]
+          },
+          {
+            "group": "Users & Admin",
+            "pages": [
+              "api/users/list",
+              "api/users/create",
+              "api/users/update",
+              "api/users/delete",
+              "api/users/profile"
+            ]
+          },
+          {
+            "group": "Chatbot",
+            "pages": [
+              "api/chatbot/message",
+              "api/chatbot/create-appointment"
+            ]
+          },
+          {
+            "group": "Analytics",
+            "pages": [
+              "api/analytics/superset-token"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

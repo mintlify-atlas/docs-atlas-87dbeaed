@@ -1,0 +1,641 @@
+---
+title: 'Deployment Guide'
+description: 'Deploy VitaFem Backend API to production environments'
+---
+
+## Pre-Deployment Checklist
+
+Before deploying to production, ensure you have completed the following:
+
+- [ ] All environment variables are properly configured
+- [ ] Database migrations are tested and ready
+- [ ] Firebase credentials are set up securely
+- [ ] SSL certificates are obtained (for HTTPS)
+- [ ] CORS origins are configured for production domains
+- [ ] Application key is generated
+- [ ] Debug mode is disabled (`APP_DEBUG=false`)
+- [ ] Logging is configured for production
+
+## Deployment Methods
+
+### Docker Deployment (Recommended)
+
+<Steps>
+  <Step title="Prepare production environment">
+    Create a production `.env` file with appropriate settings:
+    ```env
+    APP_NAME=VitaFem
+    APP_ENV=production
+    APP_KEY=base64:your-generated-key
+    APP_DEBUG=false
+    APP_URL=https://api.vitafem.com
+
+    LOG_CHANNEL=stack
+    LOG_LEVEL=error
+    ```
+  </Step>
+
+  <Step title="Update Docker configuration">
+    Ensure your `Dockerfile` is optimized for production:
+    ```dockerfile
+    FROM php:8.3-fpm
+
+    # Install system dependencies
+    RUN apt-get update && apt-get install -y \
+        git curl zip unzip libpng-dev libjpeg-dev libfreetype6-dev \
+        libzip-dev libonig-dev libxml2-dev libpq-dev libgmp-dev libxslt-dev \
+        libicu-dev \
+        && docker-php-ext-configure gd --with-freetype --with-jpeg \
+        && docker-php-ext-install \
+            pdo pdo_mysql pdo_pgsql \
+            mbstring exif pcntl bcmath gd zip xsl gmp intl \
+        && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+    # Install Composer
+    COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+    WORKDIR /var/www/html
+
+    # Copy application files
+    COPY . .
+
+    # Set Composer environment
+    ENV COMPOSER_ALLOW_SUPERUSER=1
+    ENV COMPOSER_MEMORY_LIMIT=-1
+
+    # Install dependencies
+    RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev --ignore-platform-reqs
+
+    # Set permissions
+    RUN mkdir -p storage bootstrap/cache \
+        && chown -R www-data:www-data storage bootstrap/cache \
+        && chmod -R 775 storage bootstrap/cache
+
+    EXPOSE 8080
+
+    # Start application
+    CMD php artisan optimize:clear && \
+        php artisan package:discover --ansi && \
+        php artisan serve --host=0.0.0.0 --port=8080
+    ```
+    
+    <Warning>
+      For production, remove `--no-dev` flag only if you need development dependencies. Always use `--optimize-autoloader` for better performance.
+    </Warning>
+  </Step>
+
+  <Step title="Build production image">
+    Build the Docker image with a production tag:
+    ```bash
+    docker build -t vitafem-backend:latest .
+    docker build -t vitafem-backend:v1.0.0 .
+    ```
+  </Step>
+
+  <Step title="Configure docker-compose for production">
+    Update `docker-compose.yml` for production use:
+    ```yaml
+    services:
+      backend:
+        build:
+          context: ./
+          dockerfile: Dockerfile
+        container_name: vitafem_backend
+        ports:
+          - "8080:8080"
+        volumes:
+          - ./storage:/var/www/html/storage
+          - ./public:/var/www/html/public
+        environment:
+          - APP_ENV=production
+        depends_on:
+          - db
+        restart: unless-stopped
+
+      db:
+        image: mysql:8.0
+        container_name: vitafem_db
+        environment:
+          MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+          MYSQL_DATABASE: ${DB_DATABASE}
+          MYSQL_USER: ${DB_USERNAME}
+          MYSQL_PASSWORD: ${DB_PASSWORD}
+        ports:
+          - "3307:3306"
+        volumes:
+          - dbdata:/var/lib/mysql
+        restart: unless-stopped
+
+    volumes:
+      dbdata:
+    ```
+  </Step>
+
+  <Step title="Deploy containers">
+    Start the production containers:
+    ```bash
+    docker-compose up -d
+    ```
+    
+    Verify containers are running:
+    ```bash
+    docker ps
+    docker logs vitafem_backend
+    ```
+  </Step>
+
+  <Step title="Run migrations">
+    Execute database migrations in production:
+    ```bash
+    docker exec -it vitafem_backend php artisan migrate --force
+    ```
+    
+    <Warning>
+      The `--force` flag is required in production. Always backup your database before running migrations.
+    </Warning>
+  </Step>
+
+  <Step title="Optimize application">
+    Run optimization commands:
+    ```bash
+    docker exec -it vitafem_backend php artisan config:cache
+    docker exec -it vitafem_backend php artisan route:cache
+    docker exec -it vitafem_backend php artisan view:cache
+    ```
+  </Step>
+</Steps>
+
+### Cloud Platform Deployment
+
+#### AWS EC2
+
+<Steps>
+  <Step title="Launch EC2 instance">
+    1. Create an EC2 instance (Ubuntu 22.04 LTS recommended)
+    2. Configure security group to allow:
+       - HTTP (80)
+       - HTTPS (443)
+       - SSH (22)
+       - Custom port for API (8080)
+  </Step>
+
+  <Step title="Install Docker on EC2">
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y docker.io docker-compose
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    sudo usermod -aG docker ubuntu
+    ```
+  </Step>
+
+  <Step title="Deploy application">
+    ```bash
+    git clone <repository-url>
+    cd vitafem-backend
+    cp .env.production .env
+    docker-compose up -d --build
+    ```
+  </Step>
+
+  <Step title="Set up Nginx reverse proxy">
+    Install and configure Nginx:
+    ```bash
+    sudo apt-get install -y nginx
+    ```
+    
+    Create Nginx configuration `/etc/nginx/sites-available/vitafem`:
+    ```nginx
+    server {
+        listen 80;
+        server_name api.vitafem.com;
+
+        location / {
+            proxy_pass http://localhost:8080;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+    ```
+    
+    Enable the site:
+    ```bash
+    sudo ln -s /etc/nginx/sites-available/vitafem /etc/nginx/sites-enabled/
+    sudo nginx -t
+    sudo systemctl restart nginx
+    ```
+  </Step>
+
+  <Step title="Configure SSL with Let's Encrypt">
+    ```bash
+    sudo apt-get install -y certbot python3-certbot-nginx
+    sudo certbot --nginx -d api.vitafem.com
+    ```
+  </Step>
+</Steps>
+
+#### Google Cloud Run
+
+<Steps>
+  <Step title="Install Google Cloud SDK">
+    ```bash
+    curl https://sdk.cloud.google.com | bash
+    exec -l $SHELL
+    gcloud init
+    ```
+  </Step>
+
+  <Step title="Build and push container">
+    ```bash
+    gcloud builds submit --tag gcr.io/PROJECT_ID/vitafem-backend
+    ```
+  </Step>
+
+  <Step title="Deploy to Cloud Run">
+    ```bash
+    gcloud run deploy vitafem-backend \
+      --image gcr.io/PROJECT_ID/vitafem-backend \
+      --platform managed \
+      --region us-central1 \
+      --allow-unauthenticated \
+      --set-env-vars="APP_ENV=production,APP_KEY=base64:..."
+    ```
+  </Step>
+</Steps>
+
+#### DigitalOcean App Platform
+
+<Steps>
+  <Step title="Connect repository">
+    1. Go to DigitalOcean App Platform
+    2. Click "Create App"
+    3. Connect your GitHub repository
+  </Step>
+
+  <Step title="Configure app">
+    Set the following in App Platform:
+    - **Type**: Web Service
+    - **Dockerfile**: `Dockerfile`
+    - **HTTP Port**: 8080
+  </Step>
+
+  <Step title="Configure environment variables">
+    Add all required environment variables in the App Platform UI:
+    ```
+    APP_NAME=VitaFem
+    APP_ENV=production
+    APP_KEY=base64:...
+    DB_CONNECTION=mysql
+    DB_HOST=${db.HOSTNAME}
+    DB_PORT=${db.PORT}
+    DB_DATABASE=${db.DATABASE}
+    DB_USERNAME=${db.USERNAME}
+    DB_PASSWORD=${db.PASSWORD}
+    ```
+  </Step>
+
+  <Step title="Add managed database">
+    1. Create a MySQL database in DigitalOcean
+    2. Link it to your app
+    3. Reference database credentials using `${db.*}` variables
+  </Step>
+</Steps>
+
+### Traditional Server Deployment
+
+<Steps>
+  <Step title="Set up server requirements">
+    Install PHP 8.2+ and required extensions:
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y php8.2-fpm php8.2-cli php8.2-mysql php8.2-pgsql \
+      php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip php8.2-gd php8.2-bcmath \
+      php8.2-intl php8.2-gmp
+    ```
+  </Step>
+
+  <Step title="Install Composer">
+    ```bash
+    curl -sS https://getcomposer.org/installer | php
+    sudo mv composer.phar /usr/local/bin/composer
+    ```
+  </Step>
+
+  <Step title="Deploy application">
+    ```bash
+    cd /var/www
+    git clone <repository-url> vitafem-backend
+    cd vitafem-backend
+    composer install --no-dev --optimize-autoloader
+    ```
+  </Step>
+
+  <Step title="Configure environment">
+    ```bash
+    cp .env.example .env
+    php artisan key:generate
+    nano .env  # Update with production settings
+    ```
+  </Step>
+
+  <Step title="Set permissions">
+    ```bash
+    sudo chown -R www-data:www-data /var/www/vitafem-backend
+    sudo chmod -R 775 /var/www/vitafem-backend/storage
+    sudo chmod -R 775 /var/www/vitafem-backend/bootstrap/cache
+    ```
+  </Step>
+
+  <Step title="Configure web server">
+    For Nginx, create `/etc/nginx/sites-available/vitafem`:
+    ```nginx
+    server {
+        listen 80;
+        server_name api.vitafem.com;
+        root /var/www/vitafem-backend/public;
+
+        add_header X-Frame-Options "SAMEORIGIN";
+        add_header X-Content-Type-Options "nosniff";
+
+        index index.php;
+
+        charset utf-8;
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        location = /favicon.ico { access_log off; log_not_found off; }
+        location = /robots.txt  { access_log off; log_not_found off; }
+
+        error_page 404 /index.php;
+
+        location ~ \.php$ {
+            fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            include fastcgi_params;
+        }
+
+        location ~ /\.(?!well-known).* {
+            deny all;
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Production Configuration
+
+### Environment Variables
+
+Essential production environment variables:
+
+```env
+# Application
+APP_NAME=VitaFem
+APP_ENV=production
+APP_KEY=base64:your-generated-key-here
+APP_DEBUG=false
+APP_URL=https://api.vitafem.com
+
+# Logging
+LOG_CHANNEL=stack
+LOG_LEVEL=error
+
+# Database
+DB_CONNECTION=mysql
+DB_HOST=your-production-host
+DB_PORT=3306
+DB_DATABASE=vitafem_prod
+DB_USERNAME=vitafem_user
+DB_PASSWORD=secure-password-here
+
+# Cache & Session
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+QUEUE_CONNECTION=redis
+
+# Redis
+REDIS_HOST=your-redis-host
+REDIS_PASSWORD=your-redis-password
+REDIS_PORT=6379
+
+# Mail
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.your-provider.com
+MAIL_PORT=587
+MAIL_USERNAME=your-username
+MAIL_PASSWORD=your-password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@vitafem.com
+MAIL_FROM_NAME="VitaFem"
+
+# Firebase
+FIREBASE_CREDENTIALS=/path/to/firebase-credentials.json
+FIREBASE_DATABASE_URL=https://your-project.firebaseio.com
+```
+
+### Performance Optimization
+
+<Steps>
+  <Step title="Enable OPcache">
+    Add to `php.ini`:
+    ```ini
+    opcache.enable=1
+    opcache.memory_consumption=256
+    opcache.interned_strings_buffer=16
+    opcache.max_accelerated_files=10000
+    opcache.revalidate_freq=2
+    opcache.fast_shutdown=1
+    ```
+  </Step>
+
+  <Step title="Cache configuration">
+    ```bash
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+    ```
+  </Step>
+
+  <Step title="Use Redis for caching">
+    Update `.env`:
+    ```env
+    CACHE_DRIVER=redis
+    SESSION_DRIVER=redis
+    QUEUE_CONNECTION=redis
+    ```
+  </Step>
+
+  <Step title="Enable compression">
+    In Nginx configuration:
+    ```nginx
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+    ```
+  </Step>
+</Steps>
+
+## Security Best Practices
+
+### Secure Environment Variables
+
+<Warning>
+  Never commit `.env` files to version control. Use environment-specific configuration management.
+</Warning>
+
+- Store sensitive credentials in secure vaults (AWS Secrets Manager, HashiCorp Vault)
+- Use different credentials for each environment
+- Rotate database passwords regularly
+- Use strong, randomly generated passwords
+
+### Application Security
+
+```env
+# Disable debug mode
+APP_DEBUG=false
+
+# Set secure session settings
+SESSION_SECURE_COOKIE=true
+SESSION_HTTP_ONLY=true
+SESSION_SAME_SITE=lax
+```
+
+### CORS Configuration
+
+Update `config/cors.php` for production:
+
+```php
+'allowed_origins' => [
+    'https://vitafem.com',
+    'https://www.vitafem.com',
+    'https://app.vitafem.com',
+],
+'supports_credentials' => true,
+```
+
+## Monitoring & Logging
+
+### Application Logs
+
+Configure logging for production:
+
+```env
+LOG_CHANNEL=stack
+LOG_LEVEL=error
+```
+
+View logs:
+```bash
+tail -f storage/logs/laravel.log
+```
+
+### Health Checks
+
+Create a health check endpoint for monitoring:
+```bash
+curl https://api.vitafem.com/api/health
+```
+
+### Performance Monitoring
+
+Consider integrating:
+- **New Relic** for application performance monitoring
+- **Sentry** for error tracking
+- **LogRocket** for session replay and debugging
+
+## Backup Strategy
+
+<Steps>
+  <Step title="Database backups">
+    Set up automated daily backups:
+    ```bash
+    #!/bin/bash
+    DATE=$(date +%Y%m%d_%H%M%S)
+    mysqldump -u ${DB_USERNAME} -p${DB_PASSWORD} ${DB_DATABASE} > backup_${DATE}.sql
+    ```
+  </Step>
+
+  <Step title="File backups">
+    Backup storage and configuration:
+    ```bash
+    tar -czf backup_files_${DATE}.tar.gz storage .env
+    ```
+  </Step>
+
+  <Step title="Automated backup schedule">
+    Add to crontab:
+    ```bash
+    0 2 * * * /path/to/backup-script.sh
+    ```
+  </Step>
+</Steps>
+
+## Rollback Procedure
+
+In case of deployment issues:
+
+```bash
+# Stop current containers
+docker-compose down
+
+# Restore previous version
+git checkout <previous-tag>
+docker-compose up -d
+
+# Or restore from backup
+mysql -u ${DB_USERNAME} -p${DB_PASSWORD} ${DB_DATABASE} < backup_latest.sql
+```
+
+## Continuous Deployment
+
+Set up CI/CD pipeline using GitHub Actions:
+
+```yaml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Build Docker image
+        run: docker build -t vitafem-backend:${{ github.sha }} .
+      
+      - name: Push to registry
+        run: |
+          docker tag vitafem-backend:${{ github.sha }} registry.example.com/vitafem-backend:latest
+          docker push registry.example.com/vitafem-backend:latest
+      
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /var/www/vitafem-backend
+            docker-compose pull
+            docker-compose up -d
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Oracle Configuration" icon="database" href="/guides/oracle-configuration">
+    Configure Oracle database for production
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/auth/register">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>

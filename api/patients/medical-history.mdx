@@ -1,0 +1,290 @@
+---
+title: 'Get Medical History'
+api: 'GET /api/medico/paciente/{id_paciente}/historial'
+description: 'Retrieve the complete medical history for a patient including all past appointments'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  GET
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  `/api/medico/paciente/{id_paciente}/historial`
+</ParamField>
+
+## Authentication
+
+This endpoint is currently **public** and does not require authentication.
+
+<Warning>
+  In production, this endpoint MUST be protected with authentication and authorization middleware. Only authorized medical personnel should access patient medical histories.
+</Warning>
+
+## Path Parameters
+
+<ParamField path="id_paciente" type="number" required>
+  The unique patient identifier (ID_PACIENTE) to retrieve medical history for
+</ParamField>
+
+## Request Example
+
+```bash cURL
+curl -X GET https://api.vitafem.com/api/medico/paciente/5/historial \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+```javascript JavaScript
+fetch('https://api.vitafem.com/api/medico/paciente/5/historial', {
+  method: 'GET',
+  headers: {
+    'Accept': 'application/json',
+    'Authorization': 'Bearer YOUR_TOKEN_HERE'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+## Response
+
+The response includes patient demographics and a chronological list of all medical appointments.
+
+<ResponseField name="paciente" type="object">
+  Patient demographic information
+  
+  <ResponseField name="ID_PACIENTE" type="number">
+    Unique patient identifier
+  </ResponseField>
+  
+  <ResponseField name="NOMBRE_COMPLETO" type="string">
+    Full name of the patient
+  </ResponseField>
+  
+  <ResponseField name="FECHA_NACIMIENTO" type="string">
+    Date of birth in YYYY-MM-DD format
+  </ResponseField>
+  
+  <ResponseField name="SEXO" type="string">
+    Patient's sex ('F' or 'M')
+  </ResponseField>
+  
+  <ResponseField name="TIPO_SANGRE" type="string">
+    Blood type
+  </ResponseField>
+  
+  <ResponseField name="ALERGIAS_PRINCIPALES" type="string">
+    Known allergies and sensitivities
+  </ResponseField>
+  
+  <ResponseField name="TELEFONO" type="string">
+    Contact phone number
+  </ResponseField>
+  
+  <ResponseField name="CORREO" type="string">
+    Email address
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="historial" type="array">
+  Chronological list of medical appointments and visits
+  
+  <ResponseField name="ID_CITA" type="number">
+    Unique appointment identifier
+  </ResponseField>
+  
+  <ResponseField name="FECHA" type="string">
+    Appointment date in YYYY-MM-DD format
+  </ResponseField>
+  
+  <ResponseField name="HORA" type="string">
+    Appointment time in HH:MM format
+  </ResponseField>
+  
+  <ResponseField name="MOTIVO" type="string">
+    Reason for visit
+  </ResponseField>
+  
+  <ResponseField name="ESTADO" type="string">
+    Appointment status (e.g., 'PENDIENTE', 'COMPLETADA', 'CANCELADA')
+  </ResponseField>
+  
+  <ResponseField name="MEDICO" type="object">
+    Attending physician information
+    
+    <ResponseField name="ID_MEDICO" type="number">
+      Unique physician identifier
+    </ResponseField>
+    
+    <ResponseField name="NOMBRE" type="string">
+      Physician's name
+    </ResponseField>
+    
+    <ResponseField name="ESPECIALIDAD" type="string">
+      Medical specialty
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="DIAGNOSTICO" type="string" optional>
+    Diagnosis made during the visit (if appointment completed)
+  </ResponseField>
+  
+  <ResponseField name="TRATAMIENTO" type="string" optional>
+    Treatment prescribed (if appointment completed)
+  </ResponseField>
+  
+  <ResponseField name="NOTAS" type="string" optional>
+    Additional medical notes from the physician
+  </ResponseField>
+</ResponseField>
+
+### Success Response (200)
+
+```json
+{
+  "paciente": {
+    "ID_PACIENTE": 5,
+    "NOMBRE_COMPLETO": "María González",
+    "FECHA_NACIMIENTO": "1990-05-15",
+    "SEXO": "F",
+    "TIPO_SANGRE": "O+",
+    "ALERGIAS_PRINCIPALES": "Penicilina, Polen",
+    "TELEFONO": "5551234567",
+    "CORREO": "maria.gonzalez@example.com"
+  },
+  "historial": [
+    {
+      "ID_CITA": 101,
+      "FECHA": "2024-01-15",
+      "HORA": "10:00",
+      "MOTIVO": "Consulta ginecológica de rutina",
+      "ESTADO": "COMPLETADA",
+      "MEDICO": {
+        "ID_MEDICO": 7,
+        "NOMBRE": "Dra. Ana Martínez",
+        "ESPECIALIDAD": "Ginecología"
+      },
+      "DIAGNOSTICO": "Examen normal, sin alteraciones",
+      "TRATAMIENTO": "Continuar con controles anuales",
+      "NOTAS": "Paciente en buen estado general"
+    },
+    {
+      "ID_CITA": 156,
+      "FECHA": "2024-03-20",
+      "HORA": "14:30",
+      "MOTIVO": "Control prenatal",
+      "ESTADO": "COMPLETADA",
+      "MEDICO": {
+        "ID_MEDICO": 7,
+        "NOMBRE": "Dra. Ana Martínez",
+        "ESPECIALIDAD": "Ginecología"
+      },
+      "DIAGNOSTICO": "Embarazo de 12 semanas, evolución normal",
+      "TRATAMIENTO": "Ácido fólico 400mcg, vitaminas prenatales",
+      "NOTAS": "Próximo control en 4 semanas con ecografía"
+    },
+    {
+      "ID_CITA": 203,
+      "FECHA": "2024-04-18",
+      "HORA": "09:00",
+      "MOTIVO": "Control prenatal - segundo trimestre",
+      "ESTADO": "PENDIENTE",
+      "MEDICO": {
+        "ID_MEDICO": 7,
+        "NOMBRE": "Dra. Ana Martínez",
+        "ESPECIALIDAD": "Ginecología"
+      }
+    }
+  ]
+}
+```
+
+### Patient Not Found Response (404)
+
+```json
+{
+  "message": "Paciente no encontrado"
+}
+```
+
+## Implementation Details
+
+### Route Definition
+
+Defined in `routes/api.php:157`:
+
+```php
+Route::get('/medico/paciente/{id_paciente}/historial', 
+    [CitaController::class, 'getHistorialPaciente']);
+```
+
+<Note>
+  This endpoint is implemented in the `CitaController` (Appointments Controller) rather than `PacienteController` because it primarily deals with appointment history data.
+</Note>
+
+### Data Sources
+
+This endpoint queries multiple Oracle tables:
+
+1. **PACIENTES**: Patient demographic and medical information
+2. **CITAS**: Appointment records with dates, times, and status
+3. **MEDICOS**: Physician information including name and specialty
+4. **Related tables**: Any additional appointment details (diagnoses, treatments, notes)
+
+## Use Cases
+
+<Info>
+  **Medical Personnel Dashboard**: This endpoint is designed for healthcare providers to view a patient's complete medical history before or during appointments.
+</Info>
+
+### Typical Usage Scenarios:
+
+1. **Pre-appointment Review**: Doctor reviews history before seeing patient
+2. **Continuity of Care**: New physician reviews previous treatments
+3. **Emergency Reference**: Quick access to allergies, blood type, and recent care
+4. **Treatment Planning**: Review previous diagnoses to inform current treatment
+
+## Security Considerations
+
+<Warning>
+  **HIPAA/Privacy Compliance**: This endpoint exposes sensitive medical information. In production:
+  
+  - Require authentication with `auth:sanctum` middleware
+  - Implement role-based access control (only doctors/nurses)
+  - Log all access for audit trails
+  - Verify the requesting user has permission to view this specific patient
+  - Consider implementing patient consent tracking
+</Warning>
+
+```php
+// Recommended protection:
+Route::middleware(['auth:sanctum', 'role:medico,admin'])->group(function () {
+    Route::get('/medico/paciente/{id_paciente}/historial', 
+        [CitaController::class, 'getHistorialPaciente']);
+});
+```
+
+## Chronological Ordering
+
+Appointments in the `historial` array are typically ordered by:
+
+1. **Date** (FECHA): Most recent first, or oldest first depending on implementation
+2. **Time** (HORA): When multiple appointments on same date
+
+<Tip>
+  Verify the sort order in your implementation. Medical histories are often displayed in reverse chronological order (newest first) for quick access to recent care.
+</Tip>
+
+## Oracle-Specific Considerations
+
+<Info>
+  **Field Casing**: As with other patient endpoints, be aware that the Yajra Oracle driver may return column names in lowercase even though they're defined in UPPERCASE in the model.
+</Info>
+
+## Related Endpoints
+
+- [Get Patient Profile](/api/patients/profile) - Get basic patient information
+- [List Patients](/api/patients/list) - Search for patients
+- Medical appointments documentation (see Appointments section)

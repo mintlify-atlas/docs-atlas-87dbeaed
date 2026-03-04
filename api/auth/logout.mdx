@@ -1,0 +1,73 @@
+---
+title: 'Logout User'
+api: 'POST /api/logout'
+description: 'Revoke the current authentication token and log out the user'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  /api/logout
+</ParamField>
+
+## Authentication
+
+**Required:** This endpoint requires authentication via Laravel Sanctum token.
+
+Include the authentication token in the request header:
+
+```
+Authorization: Bearer {token}
+```
+
+## Request Body
+
+This endpoint does not require a request body.
+
+## Response
+
+<ResponseField name="message" type="string">
+  Success message confirming logout
+</ResponseField>
+
+## Example Request
+
+```bash cURL
+curl -X POST https://api.vitafem.com/api/logout \
+  -H "Authorization: Bearer 2|XyZ1234567890AbCdEfGhIjKlMnOpQrStUv" \
+  -H "Accept: application/json"
+```
+
+## Example Response
+
+```json 200 Success
+{
+  "message": "Logout exitoso"
+}
+```
+
+## Error Responses
+
+```json 401 Unauthenticated
+{
+  "message": "Unauthenticated."
+}
+```
+
+```json 401 Invalid Token
+{
+  "message": "Invalid token or token has expired."
+}
+```
+
+## Notes
+
+- This endpoint revokes the current Sanctum token used for authentication
+- After logout, the token becomes invalid and cannot be used for further requests
+- The client should clear the stored token after a successful logout
+- This is a protected route under the `auth:sanctum` middleware group
+- Each device/session has its own token, so logging out on one device doesn't affect other sessions

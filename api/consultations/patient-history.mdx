@@ -1,0 +1,335 @@
+---
+title: 'Patient Medical History'
+api: 'GET /api/medico/paciente/{id_paciente}/historial'
+description: 'Retrieve complete medical history for a patient including all consultations and prescriptions'
+---
+
+## Overview
+
+The patient history endpoint retrieves all finalized medical consultations for a specific patient, including:
+
+- Appointment dates and attending physicians
+- Vital signs from each consultation
+- Diagnoses and treatment plans
+- Complete prescription details with all medications
+
+This endpoint is designed for physicians to review a patient's complete medical record before or during an appointment.
+
+## Endpoint
+
+```
+GET /api/medico/paciente/{id_paciente}/historial
+```
+
+## Path Parameters
+
+<ParamField path="id_paciente" type="integer" required>
+  The patient ID (ID_PACIENTE) to retrieve history for
+</ParamField>
+
+## Response
+
+Returns an array of consultation records ordered by date (most recent first).
+
+<ResponseField name="fecha_formateada" type="string">
+  Consultation date in dd/mm/yyyy format
+</ResponseField>
+
+<ResponseField name="medico" type="string">
+  Name of the attending physician (prefixed with "Dr.")
+</ResponseField>
+
+<ResponseField name="motivo" type="string">
+  Reason for the appointment
+</ResponseField>
+
+<ResponseField name="consulta_medica" type="object">
+  Complete consultation details including vital signs, diagnosis, and prescriptions
+  
+  <Expandable title="consulta_medica object">
+    <ResponseField name="peso" type="number">
+      Patient weight in kilograms at time of consultation
+    </ResponseField>
+    
+    <ResponseField name="presion" type="string">
+      Blood pressure reading (e.g., "120/80")
+    </ResponseField>
+    
+    <ResponseField name="diagnostico" type="string">
+      Medical diagnosis
+    </ResponseField>
+    
+    <ResponseField name="indicaciones" type="string">
+      Treatment instructions and recommendations
+    </ResponseField>
+    
+    <ResponseField name="medicamentos" type="array">
+      Array of prescribed medications
+      
+      <Expandable title="medication object">
+        <ResponseField name="medicamento" type="string">
+          Medication name
+        </ResponseField>
+        
+        <ResponseField name="dosis" type="string">
+          Dosage (e.g., "500mg")
+        </ResponseField>
+        
+        <ResponseField name="frecuencia" type="string">
+          Frequency (e.g., "Every 8 hours")
+        </ResponseField>
+        
+        <ResponseField name="duracion" type="string">
+          Duration (e.g., "7 days")
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Response Example
+
+```json
+[
+  {
+    "fecha_formateada": "28/02/2026",
+    "medico": "Dr. María González",
+    "motivo": "Control de hipertensión",
+    "consulta_medica": {
+      "peso": 68.5,
+      "presion": "135/88",
+      "diagnostico": "Hipertensión arterial controlada",
+      "indicaciones": "Continuar con tratamiento actual, control en 3 meses",
+      "medicamentos": [
+        {
+          "medicamento": "Losartán",
+          "dosis": "50mg",
+          "frecuencia": "Una vez al día",
+          "duracion": "90 días"
+        },
+        {
+          "medicamento": "Hidroclorotiazida",
+          "dosis": "12.5mg",
+          "frecuencia": "Una vez al día",
+          "duracion": "90 días"
+        }
+      ]
+    }
+  },
+  {
+    "fecha_formateada": "15/01/2026",
+    "medico": "Dr. Carlos Ramírez",
+    "motivo": "Chequeo general",
+    "consulta_medica": {
+      "peso": 67.2,
+      "presion": "128/82",
+      "diagnostico": "Estado de salud general bueno",
+      "indicaciones": "Mantener hábitos saludables, ejercicio regular",
+      "medicamentos": []
+    }
+  },
+  {
+    "fecha_formateada": "10/12/2025",
+    "medico": "Dr. María González",
+    "motivo": "Infección respiratoria",
+    "consulta_medica": {
+      "peso": 66.8,
+      "presion": "122/78",
+      "diagnostico": "Faringitis aguda",
+      "indicaciones": "Reposo, hidratación abundante, evitar irritantes",
+      "medicamentos": [
+        {
+          "medicamento": "Amoxicilina",
+          "dosis": "500mg",
+          "frecuencia": "Cada 8 horas",
+          "duracion": "7 días"
+        },
+        {
+          "medicamento": "Ibuprofeno",
+          "dosis": "400mg",
+          "frecuencia": "Cada 6-8 horas si hay dolor",
+          "duracion": "5 días"
+        }
+      ]
+    }
+  }
+]
+```
+
+## Data Flow
+
+The endpoint performs the following steps:
+
+1. **Query Finalized Appointments**:
+   ```sql
+   SELECT * FROM CITAS 
+   WHERE ID_PACIENTE = ? 
+   AND ESTADO = 'FINALIZADA'
+   ORDER BY FECHA_HORA DESC
+   ```
+
+2. **For Each Appointment**:
+   - Retrieve physician information from MEDICOS and USUARIOS tables
+   - Query associated consultation from CONSULTAS table
+   - If consultation has prescription, retrieve from RECETAS table
+   - Load all medication details from DETALLE_RECETAS table
+
+3. **Format and Return**: Compile all data into structured JSON response
+
+## Database Relationships
+
+```
+CITAS (FINALIZADA) ──→ CONSULTAS ──→ RECETAS ──→ DETALLE_RECETAS
+   │                       │
+   │                       └──→ Vital Signs
+   │                             Diagnosis
+   │                             Treatment
+   └──→ MEDICOS ──→ USUARIOS (Doctor Name)
+```
+
+## Vital Signs Included
+
+The consultation data includes the following vital signs:
+
+| Field | Database Column | Type | Description |
+|-------|-----------------|------|-------------|
+| peso | PESO | NUMBER | Weight in kilograms |
+| altura | ALTURA | NUMBER | Height in centimeters |
+| temperatura | TEMPERATURA | NUMBER | Temperature in Celsius |
+| presion | PRESION_ARTERIAL | VARCHAR | Blood pressure (systolic/diastolic) |
+
+Note: The response only includes `peso` and `presion` in the basic example, but all vital signs are stored in the CONSULTAS table.
+
+## Additional Clinical Data
+
+The full CONSULTAS record contains:
+
+- **SINTOMAS_SUBJETIVOS**: Symptoms reported by patient
+- **EXPLORACION_FISICA**: Physical examination findings
+- **DIAGNOSTICO**: Medical diagnosis (included in response)
+- **TRATAMIENTO_INDICACIONES**: Treatment plan (included in response as `indicaciones`)
+
+## Oracle-Specific Implementation
+
+The controller includes Oracle compatibility logic:
+
+```php
+// Line 607-679 in CitaController.php
+public function getHistorialPaciente($id_paciente)
+{
+    try {
+        // Query finalized appointments
+        $citas = Cita::where('ID_PACIENTE', $id_paciente)
+                     ->where('ESTADO', 'FINALIZADA')
+                     ->orderBy('FECHA_HORA', 'desc')
+                     ->get();
+
+        $data = $citas->map(function($cita) {
+            // Oracle-safe column access
+            $idCitaReal = $cita->ID_CITAS ?? $cita->id_citas;
+            
+            // Manual query for consultation
+            $consulta = Consulta::where('ID_CITAS', $idCitaReal)
+                ->orWhere('id_citas', $idCitaReal)
+                ->first();
+            
+            if ($consulta) {
+                $idConsultaReal = $consulta->ID_CONSULTA ?? $consulta->id_consulta;
+                
+                // Query prescription
+                $receta = Receta::where('ID_CONSULTA', $idConsultaReal)
+                    ->orWhere('id_consulta', $idConsultaReal)
+                    ->first();
+                
+                if ($receta) {
+                    $idRecetaReal = $receta->ID_RECETA ?? $receta->id_receta;
+                    
+                    // Query medication details
+                    $medicamentos = DetalleReceta::where('ID_RECETA', $idRecetaReal)
+                        ->orWhere('id_receta', $idRecetaReal)
+                        ->get();
+                }
+            }
+            
+            return [/* formatted response */];
+        });
+        
+        return response()->json($data);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Error al obtener historial: ' . $e->getMessage()], 500);
+    }
+}
+```
+
+Key points:
+- Uses case-insensitive column name queries (`ID_CITAS` or `id_citas`)
+- Employs the null coalescing operator (`??`) for flexible column access
+- Manual relationship queries instead of Eloquent eager loading for Oracle compatibility
+
+## Use Cases
+
+### 1. Pre-Appointment Review
+
+Physicians can review patient history before an appointment:
+
+```javascript
+// Frontend: Load history when physician selects a patient
+const loadPatientHistory = async (patientId) => {
+  const response = await fetch(`/api/medico/paciente/${patientId}/historial`);
+  const history = await response.json();
+  
+  // Display timeline of consultations
+  displayTimeline(history);
+};
+```
+
+### 2. Current Medications Check
+
+View all active prescriptions:
+
+```javascript
+const getCurrentMedications = (history) => {
+  return history
+    .filter(record => isRecentConsultation(record.fecha_formateada))
+    .flatMap(record => record.consulta_medica?.medicamentos || []);
+};
+```
+
+### 3. Trend Analysis
+
+Track vital signs over time:
+
+```javascript
+const getWeightTrend = (history) => {
+  return history.map(record => ({
+    date: record.fecha_formateada,
+    weight: record.consulta_medica?.peso
+  })).filter(item => item.weight);
+};
+```
+
+## Error Responses
+
+### Patient Not Found or No History
+
+```json
+[]
+```
+
+Returns empty array if patient has no finalized consultations.
+
+### Server Error
+
+```json
+{
+  "error": "Error al obtener historial: [error details]"
+}
+```
+
+## Notes
+
+- Only includes appointments with `ESTADO = 'FINALIZADA'`
+- Consultations without prescriptions will have an empty `medicamentos` array
+- Results are ordered by date (most recent first)
+- All dates are formatted as dd/mm/yyyy for display
+- Physician names are prefixed with "Dr." automatically

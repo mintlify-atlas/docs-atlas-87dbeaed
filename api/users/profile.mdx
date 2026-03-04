@@ -1,0 +1,111 @@
+---
+title: "Update User Profile"
+api: "POST /api/update-profile/{id}"
+description: "Update user profile including profile picture upload"
+---
+
+## Authentication
+
+This endpoint requires authentication using Laravel Sanctum. Include the bearer token in the Authorization header.
+
+```bash
+Authorization: Bearer {token}
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The ID of the user to update
+</ParamField>
+
+## Request Body
+
+All fields are optional. Only include fields you want to update.
+
+<ParamField body="name" type="string" optional>
+  Full name of the user
+</ParamField>
+
+<ParamField body="email" type="string" optional>
+  Email address (must be unique)
+</ParamField>
+
+<ParamField body="phone" type="string" optional>
+  Phone number
+</ParamField>
+
+<ParamField body="profile_picture" type="file" optional>
+  Profile picture. Accepts jpeg, png, jpg, gif formats. Maximum size: 2MB.
+</ParamField>
+
+## Response
+
+Returns a success message and the updated user object with profile picture URL.
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The updated user object
+  
+  <ResponseField name="id" type="integer">
+    Unique identifier for the user
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Full name of the user
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    Email address
+  </ResponseField>
+  
+  <ResponseField name="phone" type="string">
+    Phone number
+  </ResponseField>
+  
+  <ResponseField name="profile_picture" type="string">
+    Full URL to the profile picture
+  </ResponseField>
+  
+  <ResponseField name="role" type="string">
+    User role
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://api.vitafem.com/api/update-profile/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json" \
+  -F "name=Dr. María González" \
+  -F "email=maria.gonzalez@example.com" \
+  -F "phone=+1234567890" \
+  -F "profile_picture=@/path/to/photo.jpg"
+```
+
+## Example Response
+
+```json
+{
+  "message": "Perfil actualizado correctamente",
+  "user": {
+    "id": 1,
+    "name": "Dr. María González",
+    "email": "maria.gonzalez@example.com",
+    "phone": "+1234567890",
+    "profile_picture": "https://api.vitafem.com/storage/users/photo.jpg",
+    "role": "user"
+  }
+}
+```
+
+## Notes
+
+- This endpoint is specifically designed for profile updates with image upload support
+- Profile picture is stored in the 'users' folder in public storage
+- The response includes the full public URL for immediate use in frontend applications
+- Returns 404 if user not found
+- All fields are optional, allowing partial updates

@@ -1,0 +1,49 @@
+---
+title: "Delete Pet"
+api: "DELETE /api/pets/{id}"
+description: "Delete a pet belonging to the authenticated user"
+---
+
+## Authentication
+
+This endpoint requires authentication using Laravel Sanctum. Include the bearer token in the Authorization header.
+
+```bash
+Authorization: Bearer {token}
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The ID of the pet to delete
+</ParamField>
+
+## Response
+
+Returns a success message confirming the deletion.
+
+<ResponseField name="message" type="string">
+  Confirmation message
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X DELETE https://api.vitafem.com/api/pets/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json"
+```
+
+## Example Response
+
+```json
+{
+  "message": "Mascota eliminada"
+}
+```
+
+## Notes
+
+- Only the pet owner can delete their pets
+- This operation is permanent and cannot be undone
+- The pet's photo will remain in storage (consider manual cleanup if needed)

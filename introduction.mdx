@@ -1,0 +1,184 @@
+---
+title: Introduction
+description: Welcome to the VitaFem Backend API documentation - a comprehensive Laravel healthcare API for managing patients, appointments, and medical services.
+---
+
+## Overview
+
+VitaFem Backend API is a robust Laravel-based healthcare management system designed to handle patient information, medical appointments, veterinary services, and administrative operations. Built with Laravel 8.75 and Oracle database integration, it provides a complete backend solution for healthcare applications.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Multi-Authentication" icon="lock">
+    Support for Laravel Sanctum, Firebase Authentication, and Social Login (Google/Facebook)
+  </Card>
+  <Card title="Patient Management" icon="user-doctor">
+    Complete patient profiles, medical history, and appointment tracking
+  </Card>
+  <Card title="Appointment System" icon="calendar-check">
+    Comprehensive scheduling with doctor availability, time slots, and status management
+  </Card>
+  <Card title="Pet Care Integration" icon="paw">
+    Veterinary cardex system for pet medical records and appointments
+  </Card>
+  <Card title="Product Management" icon="box">
+    Healthcare product catalog with CRUD operations
+  </Card>
+  <Card title="AI Chatbot" icon="robot">
+    Integrated chatbot for appointment booking and patient assistance
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+### Core Framework
+- **Laravel 8.75** - PHP web application framework
+- **PHP 8.2+** - Latest PHP version support
+- **Oracle Database** - Enterprise-grade database via yajra/laravel-oci8
+
+### Authentication & Security
+- **Laravel Sanctum** - API token authentication
+- **Firebase PHP SDK** (kreait/firebase-php) - Firebase authentication
+- **Laravel Socialite** - OAuth social login (Google, Facebook)
+- **Firebase JWT** - JSON Web Token handling
+
+### Key Dependencies
+
+```json
+{
+  "laravel/sanctum": "^2.11",
+  "kreait/firebase-php": "^6.9",
+  "kreait/laravel-firebase": "^4.2",
+  "laravel/socialite": "^5.23",
+  "firebase/php-jwt": "*",
+  "yajra/laravel-oci8": "*",
+  "guzzlehttp/guzzle": "^7.0"
+}
+```
+
+## API Architecture
+
+### Base URL
+```
+http://localhost:8000/api
+```
+
+### Authentication Methods
+
+The API supports three authentication methods:
+
+1. **Sanctum Token Authentication** - For traditional email/password login
+2. **Firebase Authentication** - For Firebase-authenticated users
+3. **Social OAuth** - For Google and Facebook login
+
+### Route Protection
+
+Routes are organized into two categories:
+
+<CodeGroup>
+```php Public Routes
+// No authentication required
+POST /api/login
+POST /api/register
+GET  /api/productos
+POST /api/citas
+GET  /api/users
+POST /api/chatbot/message
+```
+
+```php Protected Routes
+// Requires auth:sanctum middleware
+POST /api/logout
+GET  /api/me
+GET  /api/citas
+GET  /api/pets
+POST /api/appointments
+PUT  /api/users/{id}
+DELETE /api/citas/{id}
+```
+</CodeGroup>
+
+## Database Schema
+
+The API uses an Oracle database with the following key tables:
+
+- **USUARIOS** - User accounts and authentication
+- **CITAS** - Medical appointments
+- **PACIENTES** - Patient profiles
+- **PRODUCTOS** - Healthcare products
+- **Pets** - Veterinary patient records
+
+<Note>
+All Oracle table and column names are in UPPERCASE. The API handles mapping between Laravel conventions (lowercase) and Oracle naming (UPPERCASE).
+</Note>
+
+## Response Format
+
+All API responses follow a consistent JSON format:
+
+```json Success Response
+{
+  "message": "Operation successful",
+  "data": { },
+  "token": "string" // when applicable
+}
+```
+
+```json Error Response
+{
+  "message": "Error description",
+  "errors": { } // validation errors when applicable
+}
+```
+
+## Rate Limiting
+
+The API uses Laravel's default rate limiting:
+- **60 requests per minute** for authenticated routes
+- Throttled by user token
+
+## CORS Configuration
+
+CORS is configured via `fruitcake/laravel-cors` package:
+- Supports cross-origin requests
+- Configured for frontend integration
+
+## Getting Started
+
+<Steps>
+  <Step title="Read the Quickstart Guide">
+    Get your API credentials and make your first request in minutes.
+    
+    [Go to Quickstart →](/quickstart)
+  </Step>
+  
+  <Step title="Understand Authentication">
+    Learn about the three authentication methods and how to obtain access tokens.
+    
+    [Read Authentication Docs →](/authentication)
+  </Step>
+  
+  <Step title="Explore Endpoints">
+    Browse the complete API reference for all available endpoints.
+    
+    [View API Reference →](/api/auth/register)
+  </Step>
+</Steps>
+
+## Need Help?
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/auth/register">
+    Complete endpoint documentation with examples
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Detailed authentication guides
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get started in 5 minutes
+  </Card>
+  <Card title="Core Concepts" icon="code" href="/concepts/architecture">
+    Understand the system architecture
+  </Card>
+</CardGroup>

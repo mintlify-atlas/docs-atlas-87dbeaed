@@ -1,0 +1,125 @@
+---
+title: 'List Appointments'
+api: 'GET /api/admin/citas'
+description: 'Retrieve all appointments in the system with doctor and patient information'
+---
+
+## Overview
+
+This endpoint returns all appointments in the system, ordered by date and time (soonest first). It includes complete information about the doctor, patient, appointment status, and scheduling details.
+
+<Note>
+  This endpoint requires authentication with `auth:sanctum` middleware. Typically used by administrators or secretaries to manage the appointment calendar.
+</Note>
+
+## Response Fields
+
+<ResponseField name="id_cita" type="integer" required>
+  Unique appointment identifier
+</ResponseField>
+
+<ResponseField name="paciente" type="string" required>
+  Patient's full name. The system first checks the patient profile (`PACIENTES.NOMBRE_COMPLETO`), and if not filled, falls back to the user's name from the `USUARIOS` table.
+</ResponseField>
+
+<ResponseField name="fecha_formateada" type="string" required>
+  Formatted appointment date in `dd/mm/yyyy` format (e.g., "15/03/2026")
+</ResponseField>
+
+<ResponseField name="hora" type="string" required>
+  Appointment time in 24-hour `HH:mm` format (e.g., "14:30")
+</ResponseField>
+
+<ResponseField name="medico" type="string" required>
+  Doctor's full name extracted from the `MEDICOS` and `USUARIOS` tables
+</ResponseField>
+
+<ResponseField name="estado" type="string" required>
+  Appointment status. Possible values:
+  - `PENDIENTE` - Pending confirmation
+  - `CONFIRMADA` - Confirmed by staff
+  - `CANCELADA` - Cancelled by patient or doctor
+  - `FINALIZADA` - Completed with medical consultation recorded
+</ResponseField>
+
+<ResponseField name="motivo" type="string">
+  Reason for the appointment provided by the patient during booking
+</ResponseField>
+
+## Request Example
+
+```bash
+curl -X GET https://api.vitafem.com/api/admin/citas \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: application/json"
+```
+
+## Response Example
+
+```json
+[
+  {
+    "id_cita": 45,
+    "paciente": "María González López",
+    "fecha_formateada": "15/03/2026",
+    "hora": "14:30",
+    "medico": "Dra. Ana Martínez",
+    "estado": "CONFIRMADA",
+    "motivo": "Consulta de rutina - Control prenatal"
+  },
+  {
+    "id_cita": 46,
+    "paciente": "Laura Ramírez",
+    "fecha_formateada": "16/03/2026",
+    "hora": "10:00",
+    "medico": "Dr. Carlos Ruiz",
+    "estado": "PENDIENTE",
+    "motivo": "Primera consulta - Planificación familiar"
+  }
+]
+```
+
+## Implementation Details
+
+### Database Query
+
+The endpoint uses Eloquent ORM with eager loading to optimize database queries:
+
+```php
+Cita::with(['medico.usuario', 'paciente'])
+    ->orderBy('FECHA_HORA', 'asc')
+    ->get();
+```
+
+### Oracle Compatibility
+
+The controller handles Oracle Database's case sensitivity by checking both uppercase and lowercase column names:
+
+```php
+$fechaHoraStr = $cita->FECHA_HORA ?? $cita->fecha_hora;
+$idPaciente = $cita->ID_PACIENTE ?? $cita->id_paciente;
+```
+
+### Patient Name Resolution
+
+The system follows a fallback strategy:
+1. First checks `PACIENTES` table for `NOMBRE_COMPLETO` (completed profile)
+2. If empty, retrieves name from `USUARIOS` table using `ID_PACIENTE`
+
+## Error Responses
+
+<ResponseField name="error" type="string">
+  Error message describing what went wrong
+</ResponseField>
+
+```json
+{
+  "error": "Error al obtener todas las citas: Database connection failed"
+}
+```
+
+## Related Endpoints
+
+- [Update Appointment Status](/api/appointments/update-status) - Change appointment state
+- [My Appointments](/api/appointments/my-appointments) - Get patient-specific appointments
+- [Create Appointment](/api/appointments/create) - Book a new appointment

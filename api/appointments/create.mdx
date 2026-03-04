@@ -1,0 +1,173 @@
+---
+title: 'Create Appointment'
+api: 'POST /api/citas'
+description: 'Book a new medical appointment with optional email notification'
+---
+
+## Overview
+
+This endpoint creates a new appointment in the system. It validates time slot availability, schedules the appointment, and optionally sends a confirmation email to the patient.
+
+<Warning>
+  This is a **public endpoint** that does not require authentication. It allows patients to book appointments before logging in.
+</Warning>
+
+## Request Body
+
+<ParamField body="ID_PACIENTE" type="integer" required>
+  Patient's user ID. This corresponds to `ID_USUARIO` from the `USUARIOS` table.
+</ParamField>
+
+<ParamField body="ID_MEDICO" type="integer" required>
+  Doctor's ID from the `MEDICOS` table. Use the [Get Doctors](/api/doctors/list) endpoint to retrieve available doctors.
+</ParamField>
+
+<ParamField body="FECHA" type="string" required>
+  Appointment date in `YYYY-MM-DD` format (e.g., "2026-03-15")
+</ParamField>
+
+<ParamField body="HORA" type="string" required>
+  Appointment time in `HH:mm` 24-hour format (e.g., "14:30"). Check [Available Slots](/api/appointments/available-slots) first to ensure the time is available.
+</ParamField>
+
+<ParamField body="MOTIVO" type="string">
+  Reason for the appointment. Helps the doctor prepare for the consultation.
+</ParamField>
+
+<ParamField body="ID_USUARIO_REGISTRO" type="integer">
+  ID of the user who registered the appointment (for internal tracking). Can be null for self-booking.
+</ParamField>
+
+<ParamField body="enviar_correo" type="boolean" default="false">
+  Set to `true` to send a confirmation email to the patient
+</ParamField>
+
+<ParamField body="correo_notificacion" type="string">
+  Patient's email address. Required when `enviar_correo` is `true`.
+</ParamField>
+
+## Response Fields
+
+<ResponseField name="message" type="string" required>
+  Success message confirming the appointment was created
+</ResponseField>
+
+<ResponseField name="cita" type="object" required>
+  Complete appointment object with all fields including the generated `ID_CITAS`
+</ResponseField>
+
+<ResponseField name="cita.ID_CITAS" type="integer">
+  Generated appointment ID (auto-incremented via `SEQ_CITAS` sequence)
+</ResponseField>
+
+<ResponseField name="cita.FECHA_HORA" type="datetime">
+  Combined date and time timestamp (e.g., "2026-03-15 14:30:00")
+</ResponseField>
+
+<ResponseField name="cita.ESTADO" type="string">
+  Initial appointment status, always set to `PENDIENTE`
+</ResponseField>
+
+## Request Example
+
+```bash
+curl -X POST https://api.vitafem.com/api/citas \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "ID_PACIENTE": 123,
+    "ID_MEDICO": 5,
+    "FECHA": "2026-03-15",
+    "HORA": "14:30",
+    "MOTIVO": "Consulta de rutina - Control prenatal",
+    "enviar_correo": true,
+    "correo_notificacion": "maria.gonzalez@email.com"
+  }'
+```
+
+## Response Example
+
+```json
+{
+  "message": "Cita guardada correctamente",
+  "cita": {
+    "ID_CITAS": 47,
+    "ID_PACIENTE": 123,
+    "ID_MEDICO": 5,
+    "ID_USUARIO_REGISTRO": null,
+    "FECHA_HORA": "2026-03-15 14:30:00",
+    "ESTADO": "PENDIENTE",
+    "MOTIVO": "Consulta de rutina - Control prenatal",
+    "NOTAS_MEDICAS": null
+  }
+}
+```
+
+## Implementation Details
+
+### Date and Time Processing
+
+The endpoint combines the `FECHA` and `HORA` parameters using Carbon:
+
+```php
+$fechaHoraString = $request->FECHA . ' ' . $request->HORA . ':00';
+$fechaHora = Carbon::parse($fechaHoraString);
+```
+
+### Email Notification
+
+When `enviar_correo` is enabled, the system:
+1. Retrieves doctor information from `MEDICOS` and `USUARIOS` tables
+2. Formats the appointment details
+3. Sends email using Laravel's Mail system with the `CitaConfirmada` mailable
+4. Logs errors silently if email fails (appointment still created)
+
+```php
+Mail::to($request->correo_notificacion)->send(new CitaConfirmada($datosCorreo));
+```
+
+### Default Status
+
+All new appointments are created with `ESTADO = 'PENDIENTE'`. Staff must confirm them using the [Update Status](/api/appointments/update-status) endpoint.
+
+## Error Responses
+
+### Validation Error (400)
+
+```json
+{
+  "message": "The given data was invalid.",
+  "errors": {
+    "ID_PACIENTE": ["The ID_PACIENTE field is required."],
+    "FECHA": ["The FECHA must be a valid date."]
+  }
+}
+```
+
+### Database Error (500)
+
+```json
+{
+  "error": "Error al guardar en BD: SQLSTATE[23000]: Integrity constraint violation"
+}
+```
+
+## Best Practices
+
+<Check>
+  **Always check available slots** before creating an appointment using the [Available Slots](/api/appointments/available-slots) endpoint to prevent double-booking.
+</Check>
+
+<Check>
+  **Validate doctor's working hours** by checking their schedule with [Get Available Slots](/api/appointments/available-slots) for the specific date.
+</Check>
+
+<Warning>
+  Email notifications may fail silently. The appointment will still be created successfully, but the patient won't receive confirmation. Check `storage/logs/laravel.log` for email errors.
+</Warning>
+
+## Related Endpoints
+
+- [Available Slots](/api/appointments/available-slots) - Check doctor availability
+- [Get Doctors](/api/doctors/list) - List all available doctors
+- [My Appointments](/api/appointments/my-appointments) - View patient's appointments

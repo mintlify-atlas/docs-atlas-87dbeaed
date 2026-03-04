@@ -1,80 +1,425 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with the VitaFem Backend API in under 5 minutes. Learn how to register, authenticate, and make your first API request.
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+Before you begin, ensure you have:
+- A running instance of the VitaFem Backend API (default: `http://localhost:8000`)
+- An HTTP client (cURL, Postman, or similar)
+- Basic understanding of REST APIs
 
-### Step 1: Set up your local environment
+## Base URL
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+All API endpoints are relative to:
 
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+```
+http://localhost:8000/api
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+Replace `localhost:8000` with your actual API domain in production.
 </Note>
+
+## Step 1: Register a User
+
+Create a new user account to get started.
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:8000/api/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Dr. Jane Smith",
+    "email": "jane.smith@example.com",
+    "password": "securePassword123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8000/api/register', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    name: 'Dr. Jane Smith',
+    email: 'jane.smith@example.com',
+    password: 'securePassword123'
+  })
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+url = 'http://localhost:8000/api/register'
+payload = {
+    'name': 'Dr. Jane Smith',
+    'email': 'jane.smith@example.com',
+    'password': 'securePassword123'
+}
+
+response = requests.post(url, json=payload)
+print(response.json())
+```
+</CodeGroup>
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| name | string | Yes | User's full name (max 255 characters) |
+| email | string | Yes | Valid email address (max 100 characters) |
+| password | string | Yes | Password (minimum 6 characters) |
+
+### Response
+
+```json 201 Created
+{
+  "message": "Usuario registrado",
+  "user": {
+    "ID_USUARIO": 1,
+    "NOMBRE": "Dr. Jane Smith",
+    "CORREO": "jane.smith@example.com",
+    "ACTIVO": "1"
+  },
+  "token": "token-demo-123"
+}
+```
+
+<Warning>
+The current implementation returns a demo token. In production, this will be replaced with a valid Laravel Sanctum token.
+</Warning>
+
+## Step 2: Login
+
+Authenticate with your credentials to receive an access token.
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.smith@example.com",
+    "password": "securePassword123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8000/api/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'jane.smith@example.com',
+    password: 'securePassword123'
+  })
+});
+
+const data = await response.json();
+const token = data.token;
+
+// Save token for future requests
+localStorage.setItem('authToken', token);
+```
+
+```python Python
+import requests
+
+url = 'http://localhost:8000/api/login'
+payload = {
+    'email': 'jane.smith@example.com',
+    'password': 'securePassword123'
+}
+
+response = requests.post(url, json=payload)
+data = response.json()
+token = data['token']
+
+# Save token for future requests
+print(f"Token: {token}")
+```
+</CodeGroup>
+
+### Response
+
+```json 200 OK
+{
+  "message": "Login exitoso",
+  "user": {
+    "ID_USUARIO": 1,
+    "NOMBRE": "Dr. Jane Smith",
+    "CORREO": "jane.smith@example.com",
+    "ACTIVO": "1"
+  },
+  "token": "token-demo-123"
+}
+```
+
+```json 401 Unauthorized
+{
+  "message": "Credenciales incorrectas"
+}
+```
+
+<Note>
+The password is hashed using Laravel's `Hash::make()` with bcrypt. The login endpoint uses `Hash::check()` to verify credentials.
+</Note>
+
+## Step 3: Access Protected Endpoints
+
+Use your token to access protected endpoints by including it in the `Authorization` header.
+
+### Get Current User Profile
+
+<CodeGroup>
+```bash cURL
+curl -X GET http://localhost:8000/api/me \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Accept: application/json"
+```
+
+```javascript JavaScript
+const token = localStorage.getItem('authToken');
+
+const response = await fetch('http://localhost:8000/api/me', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/json'
+  }
+});
+
+const user = await response.json();
+console.log(user);
+```
+
+```python Python
+import requests
+
+headers = {
+    'Authorization': f'Bearer {token}',
+    'Accept': 'application/json'
+}
+
+response = requests.get('http://localhost:8000/api/me', headers=headers)
+user = response.json()
+print(user)
+```
+</CodeGroup>
+
+### Get List of Products
+
+<CodeGroup>
+```bash cURL
+curl -X GET http://localhost:8000/api/productos \
+  -H "Accept: application/json"
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8000/api/productos', {
+  headers: {
+    'Accept': 'application/json'
+  }
+});
+
+const products = await response.json();
+console.log(products);
+```
+</CodeGroup>
+
+<Note>
+The `/api/productos` endpoint is public and doesn't require authentication.
+</Note>
+
+## Step 4: Create an Appointment
+
+Create a new medical appointment.
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:8000/api/citas \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "id_paciente": 1,
+    "id_medico": 2,
+    "fecha": "2026-03-15",
+    "hora": "10:00",
+    "motivo": "Consulta general"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8000/api/citas', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  },
+  body: JSON.stringify({
+    id_paciente: 1,
+    id_medico: 2,
+    fecha: '2026-03-15',
+    hora: '10:00',
+    motivo: 'Consulta general'
+  })
+});
+
+const appointment = await response.json();
+console.log(appointment);
+```
+</CodeGroup>
+
+<Note>
+The `/api/citas` POST endpoint is public to allow appointment creation from landing pages or public forms.
+</Note>
+
+## Step 5: Get Your Appointments (Protected)
+
+Retrieve all appointments (requires authentication).
+
+<CodeGroup>
+```bash cURL
+curl -X GET http://localhost:8000/api/citas \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Accept: application/json"
+```
+
+```javascript JavaScript
+const token = localStorage.getItem('authToken');
+
+const response = await fetch('http://localhost:8000/api/citas', {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/json'
+  }
+});
+
+const appointments = await response.json();
+console.log(appointments);
+```
+</CodeGroup>
+
+## Step 6: Logout
+
+Invalidate the current token.
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:8000/api/logout \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Accept: application/json"
+```
+
+```javascript JavaScript
+const token = localStorage.getItem('authToken');
+
+const response = await fetch('http://localhost:8000/api/logout', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/json'
+  }
+});
+
+// Clear token from storage
+localStorage.removeItem('authToken');
+```
+</CodeGroup>
+
+## Common Response Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 201 | Resource created |
+| 401 | Unauthorized - Invalid or missing token |
+| 422 | Validation error |
+| 500 | Server error |
+
+## Error Handling
+
+All errors follow a consistent format:
+
+```json Validation Error (422)
+{
+  "message": "The given data was invalid.",
+  "errors": {
+    "email": [
+      "The email has already been taken."
+    ],
+    "password": [
+      "The password must be at least 6 characters."
+    ]
+  }
+}
+```
+
+```json Authentication Error (401)
+{
+  "message": "Unauthenticated."
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="shield-halved" href="/authentication">
+    Learn about Firebase and Social Login authentication
+  </Card>
+  <Card title="API Reference" icon="book-open" href="/api/auth/register">
+    Explore all available endpoints
+  </Card>
+  <Card title="Pets Management" icon="paw" href="/api/pets/list">
+    Veterinary cardex system documentation
+  </Card>
+  <Card title="Appointments" icon="calendar" href="/api/appointments/create">
+    Advanced appointment scheduling
+  </Card>
+</CardGroup>
+
+## Testing with Postman
+
+<Steps>
+  <Step title="Import Collection">
+    Create a new Postman collection for VitaFem API
+  </Step>
+  
+  <Step title="Set Environment Variables">
+    ```json
+    {
+      "base_url": "http://localhost:8000/api",
+      "token": ""
+    }
+    ```
+  </Step>
+  
+  <Step title="Add Auth Script">
+    In your collection's Tests tab, add:
+    ```javascript
+    if (pm.response.json().token) {
+      pm.environment.set("token", pm.response.json().token);
+    }
+    ```
+  </Step>
+  
+  <Step title="Use Token">
+    In protected requests, use `Bearer {{token}}` in Authorization header
+  </Step>
+</Steps>
+
+## Rate Limits
+
+- **60 requests per minute** per authenticated user
+- **No rate limit** on public endpoints (subject to server capacity)
+
+<Warning>
+Exceeding rate limits will result in a `429 Too Many Requests` response.
+</Warning>

@@ -1,0 +1,173 @@
+---
+title: 'Create Consultation'
+api: 'PUT /api/medico/citas/{id}/atender'
+description: 'Complete an appointment by creating a medical consultation record with vital signs, diagnosis, and prescription'
+---
+
+## Overview
+
+The `atenderCita` endpoint allows physicians to complete an appointment by creating a comprehensive medical consultation record. This endpoint creates entries in three interconnected tables:
+
+- **CONSULTAS**: Stores vital signs, symptoms, physical examination, diagnosis, and treatment
+- **RECETAS**: Creates a prescription header linked to the consultation
+- **DETALLE_RECETAS**: Stores individual medication details for the prescription
+
+After successful completion, the appointment status is updated to `FINALIZADA`.
+
+## Endpoint
+
+```
+PUT /api/medico/citas/{id}/atender
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The appointment ID (ID_CITAS) to be attended
+</ParamField>
+
+## Request Body
+
+### Vital Signs
+
+<ParamField body="peso" type="number" required>
+  Patient weight in kilograms
+</ParamField>
+
+<ParamField body="altura" type="number" required>
+  Patient height in centimeters
+</ParamField>
+
+<ParamField body="temperatura" type="number" required>
+  Body temperature in Celsius
+</ParamField>
+
+<ParamField body="presion_arterial" type="string" required>
+  Blood pressure reading (e.g., "120/80")
+</ParamField>
+
+### Clinical Assessment
+
+<ParamField body="sintomas" type="string" required>
+  Subjective symptoms reported by the patient (SINTOMAS_SUBJETIVOS)
+</ParamField>
+
+<ParamField body="exploracion" type="string" required>
+  Physical examination findings (EXPLORACION_FISICA)
+</ParamField>
+
+<ParamField body="diagnostico" type="string" required>
+  Medical diagnosis
+</ParamField>
+
+<ParamField body="indicaciones" type="string" required>
+  Treatment instructions and recommendations (TRATAMIENTO_INDICACIONES)
+</ParamField>
+
+### Prescription (Optional)
+
+<ParamField body="medicamentos" type="array">
+  Array of medications to prescribe. If provided, creates a RECETA record with associated DETALLE_RECETAS entries.
+  
+  Each medication object should contain:
+  
+  <Expandable title="Medication Object">
+    <ParamField body="medicamento" type="string" required>
+      Medication name
+    </ParamField>
+    
+    <ParamField body="dosis" type="string" required>
+      Dosage (e.g., "500mg")
+    </ParamField>
+    
+    <ParamField body="frecuencia" type="string" required>
+      Frequency (e.g., "Every 8 hours")
+    </ParamField>
+    
+    <ParamField body="duracion" type="string" required>
+      Duration (e.g., "7 days")
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Request Example
+
+```json
+{
+  "peso": 65.5,
+  "altura": 165,
+  "temperatura": 36.8,
+  "presion_arterial": "120/80",
+  "sintomas": "Dolor de cabeza persistente y mareos ocasionales",
+  "exploracion": "Presión arterial elevada, resto de examen físico normal",
+  "diagnostico": "Hipertensión arterial esencial",
+  "indicaciones": "Reducir consumo de sal, ejercicio moderado 30 min/día, control en 2 semanas",
+  "medicamentos": [
+    {
+      "medicamento": "Losartán",
+      "dosis": "50mg",
+      "frecuencia": "Una vez al día",
+      "duracion": "30 días"
+    },
+    {
+      "medicamento": "Aspirina",
+      "dosis": "100mg",
+      "frecuencia": "Una vez al día",
+      "duracion": "30 días"
+    }
+  ]
+}
+```
+
+## Response
+
+<ResponseField name="message" type="string">
+  Success message confirming the consultation was saved
+</ResponseField>
+
+### Success Response
+
+```json
+{
+  "message": "Consulta médica guardada exitosamente"
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "Cita no encontrada"
+}
+```
+
+## Database Operations
+
+This endpoint performs the following operations in a database transaction:
+
+1. **Create Consultation Record**: Inserts into `CONSULTAS` table with:
+   - Link to appointment (ID_CITAS)
+   - Patient ID (ID_PACIENTE) from the appointment
+   - All vital signs and clinical data
+
+2. **Create Prescription (if medications provided)**:
+   - Inserts into `RECETAS` table with current timestamp
+   - Links to consultation via ID_CONSULTA
+
+3. **Create Medication Details**:
+   - Inserts each medication into `DETALLE_RECETAS`
+   - Links to prescription via ID_RECETA
+
+4. **Update Appointment**:
+   - Sets `ESTADO` to `'FINALIZADA'`
+   - Stores diagnosis summary in `NOTAS_MEDICAS`
+
+If any operation fails, the entire transaction is rolled back.
+
+## Notes
+
+- The endpoint uses Oracle database with case-sensitive column names (uppercase)
+- All fields except `medicamentos` array are required
+- Prescriptions are optional - omit the `medicamentos` array if no medications are prescribed
+- The appointment must exist and belong to a valid patient
+- Returns 404 if the appointment ID is not found

@@ -1,0 +1,127 @@
+---
+title: 'List Doctors'
+api: 'GET /api/medicos'
+description: 'Retrieve all registered doctors with their profile information'
+---
+
+## Overview
+
+This endpoint returns a list of all doctors registered in the VitaFem system, including their specialty, profile photo, and bio information.
+
+<RequestExample>
+```bash cURL
+curl --request GET \
+  --url https://api.vitafem.com/api/medicos
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.vitafem.com/api/medicos', {
+  method: 'GET',
+  headers: {
+    'Accept': 'application/json'
+  }
+});
+
+const doctors = await response.json();
+console.log(doctors);
+```
+
+```python Python
+import requests
+
+response = requests.get('https://api.vitafem.com/api/medicos')
+doctors = response.json()
+print(doctors)
+```
+</RequestExample>
+
+## Response
+
+<ResponseField name="doctors" type="array">
+  Array of doctor objects
+
+  <Expandable title="Doctor Object">
+    <ResponseField name="id_medico" type="integer" required>
+      Unique identifier for the doctor
+    </ResponseField>
+
+    <ResponseField name="nombre" type="string" required>
+      Doctor's full name from the user profile
+    </ResponseField>
+
+    <ResponseField name="especialidad" type="string" required>
+      Medical specialty (e.g., "Ginecología", "Obstetricia", "Medicina General")
+    </ResponseField>
+
+    <ResponseField name="foto" type="string">
+      URL to the doctor's profile photo. Returns a default doctor icon if no photo is uploaded.
+    </ResponseField>
+
+    <ResponseField name="bio" type="string">
+      Short biography or description of the doctor
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Response
+[
+  {
+    "id_medico": 1,
+    "nombre": "Dr. María García",
+    "especialidad": "Ginecología",
+    "foto": "https://api.vitafem.com/storage/doctors/maria-garcia.jpg",
+    "bio": "Especialista en Ginecología de VitaFem con 15 años de experiencia."
+  },
+  {
+    "id_medico": 2,
+    "nombre": "Dr. Ana Martínez",
+    "especialidad": "Obstetricia",
+    "foto": "https://cdn-icons-png.flaticon.com/512/3774/3774299.png",
+    "bio": "Especialista en Obstetricia de VitaFem."
+  },
+  {
+    "id_medico": 3,
+    "nombre": "Dr. Carmen López",
+    "especialidad": "Medicina General",
+    "foto": "https://api.vitafem.com/storage/doctors/carmen-lopez.jpg",
+    "bio": "Médico general con enfoque en salud femenina."
+  }
+]
+```
+</ResponseExample>
+
+## Use Cases
+
+### Display Doctor Selection
+Use this endpoint to populate a doctor selection dropdown when patients are booking appointments:
+
+```javascript
+const loadDoctors = async () => {
+  const response = await fetch('/api/medicos');
+  const doctors = await response.json();
+  
+  return doctors.map(doctor => ({
+    value: doctor.id_medico,
+    label: `${doctor.nombre} - ${doctor.especialidad}`,
+    photo: doctor.foto
+  }));
+};
+```
+
+### Filter by Specialty
+```javascript
+const getGynecologists = async () => {
+  const response = await fetch('/api/medicos');
+  const doctors = await response.json();
+  
+  return doctors.filter(doc => doc.especialidad === 'Ginecología');
+};
+```
+
+## Notes
+
+- This is a public endpoint and does not require authentication
+- The doctor list includes all active doctors in the system
+- The `foto` field returns a default icon URL if the doctor hasn't uploaded a profile photo
+- Doctor names are retrieved from the linked user account in the USUARIOS table

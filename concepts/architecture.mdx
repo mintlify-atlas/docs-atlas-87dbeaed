@@ -1,0 +1,312 @@
+---
+title: 'System Architecture'
+description: 'Understanding the VitaFem Backend API architecture and component organization'
+icon: 'sitemap'
+---
+
+## Overview
+
+VitaFem Backend is a Laravel-based healthcare API designed to manage medical appointments, patient records, consultations, and prescriptions. The system follows a **Model-View-Controller (MVC)** architecture with RESTful API endpoints.
+
+<CardGroup cols={2}>
+  <Card title="Framework" icon="laravel">
+    Laravel 8.x/9.x with PHP 8.2+
+  </Card>
+  <Card title="Database" icon="database">
+    Oracle Database with Yajra OCI8 driver
+  </Card>
+  <Card title="Authentication" icon="shield-halved">
+    Laravel Sanctum + Firebase Auth
+  </Card>
+  <Card title="API Design" icon="code">
+    RESTful with JSON responses
+  </Card>
+</CardGroup>
+
+## Architecture Layers
+
+### 1. Application Layer
+
+The application layer handles HTTP requests and business logic.
+
+```
+app/
+├── Http/
+│   ├── Controllers/          # Request handling and response logic
+│   │   ├── AuthController.php
+│   │   ├── CitaController.php
+│   │   ├── PacienteController.php
+│   │   └── ...
+│   ├── Middleware/           # Request filtering and validation
+│   │   ├── RoleMiddleware.php
+│   │   ├── Authenticate.php
+│   │   └── CorsMiddleware.php
+│   └── Kernel.php           # Middleware registration
+├── Models/                   # Eloquent ORM models
+│   ├── User.php
+│   ├── Paciente.php
+│   ├── Medico.php
+│   ├── Cita.php
+│   └── ...
+└── Exceptions/
+    └── Handler.php          # Global exception handling
+```
+
+### 2. Data Layer
+
+The data layer manages database interactions through Eloquent ORM.
+
+<Accordion title="Oracle-Specific Configuration">
+  VitaFem uses Oracle Database with the Yajra OCI8 package, requiring special model configuration:
+
+  ```php
+  // All models must define:
+  protected $table = 'UPPERCASE_TABLE_NAME';
+  protected $primaryKey = 'ID_FIELD';
+  public $sequence = 'SEQ_TABLE_NAME';  // Oracle sequences
+  public $timestamps = false;            // Manual timestamp handling
+  ```
+</Accordion>
+
+### 3. Service Layer
+
+Business logic is encapsulated in controllers with clear separation of concerns:
+
+- **AuthController**: User registration, login, and session management
+- **CitaController**: Appointment scheduling and management
+- **PacienteController**: Patient profile and medical history
+- **ChatbotController**: AI-powered appointment booking assistant
+
+## Key Components
+
+### Authentication System
+
+The system supports multiple authentication methods:
+
+<CodeGroup>
+```php AuthController (Traditional)
+public function login(Request $request)
+{
+    $user = User::where('CORREO', $request->email)->first();
+    
+    if (!$user || !Hash::check($request->password, $user->password)) {
+        return response()->json(['message' => 'Credenciales incorrectas'], 401);
+    }
+    
+    $token = $user->createToken('authToken')->plainTextToken;
+    
+    return response()->json([
+        'message' => 'Login exitoso',
+        'user' => $user,
+        'token' => $token
+    ]);
+}
+```
+
+```php Firebase Integration
+use Firebase\JWT\JWT;
+
+// Firebase authentication for mobile apps
+Route::post('/auth/firebase', [FirebaseAuthController::class, 'handle']);
+```
+
+```php Social Login (Google/Facebook)
+// OAuth integration via Laravel Socialite
+Route::get('/auth/{provider}/callback', function ($provider) {
+    $socialUser = Socialite::driver($provider)->stateless()->user();
+    $user = User::updateOrCreate(
+        ['email' => $socialUser->getEmail()],
+        [
+            'name' => $socialUser->getName(),
+            'email' => $socialUser->getEmail(),
+            'password' => bcrypt(str()->random(16)),
+            'role' => 'user'
+        ]
+    );
+    return $token = $user->createToken('authToken')->plainTextToken;
+});
+```
+</CodeGroup>
+
+### Middleware Stack
+
+The application uses a layered middleware approach:
+
+<Steps>
+  <Step title="Global Middleware">
+    Applied to all requests:
+    - CORS handling (`HandleCors`)
+    - Request validation (`ValidatePostSize`)
+    - String trimming (`TrimStrings`)
+  </Step>
+  
+  <Step title="Route Middleware">
+    Applied to specific route groups:
+    - `auth:sanctum` - Token-based authentication
+    - `role:admin` - Role-based access control
+    - `throttle:api` - Rate limiting
+  </Step>
+  
+  <Step title="Custom Middleware">
+    Application-specific logic:
+    - `RoleMiddleware` - Role verification (see [Roles & Permissions](/concepts/roles-permissions))
+  </Step>
+</Steps>
+
+### API Routes Structure
+
+Routes are organized by access level:
+
+```php routes/api.php
+// Public routes (no authentication)
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
+Route::get('/medicos', [CitaController::class, 'getMedicos']);
+
+// Protected routes (require auth:sanctum)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/citas', [CitaController::class, 'store']);
+    Route::get('/pacientes/{id_usuario}/citas', [CitaController::class, 'getMisCitas']);
+});
+
+// Admin routes (require role:admin)
+Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::get('/admin/citas', [CitaController::class, 'getAllCitas']);
+    Route::post('/admin/medicos', [CitaController::class, 'crearMedico']);
+});
+```
+
+## Request/Response Flow
+
+<Steps>
+  <Step title="Client Request">
+    Mobile/web client sends HTTP request to API endpoint
+    ```bash
+    POST /api/citas
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+  </Step>
+  
+  <Step title="Middleware Processing">
+    - CORS validation
+    - Authentication check (Sanctum token)
+    - Role verification (if required)
+    - Rate limiting
+  </Step>
+  
+  <Step title="Controller Action">
+    Controller receives request, validates input, and processes business logic
+    ```php
+    $cita = Cita::create([
+        'ID_PACIENTE' => $request->paciente_id,
+        'ID_MEDICO' => $request->medico_id,
+        'FECHA_HORA' => $request->fecha_hora,
+        'ESTADO' => 'PROGRAMADA'
+    ]);
+    ```
+  </Step>
+  
+  <Step title="Database Interaction">
+    Eloquent ORM translates to Oracle SQL with proper sequence handling
+  </Step>
+  
+  <Step title="Response Generation">
+    JSON response sent back to client
+    ```json
+    {
+      "message": "Cita creada exitosamente",
+      "data": { "id": 123, "fecha": "2025-04-15" }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Integration Points
+
+### External Services
+
+<CardGroup cols={2}>
+  <Card title="Firebase" icon="fire">
+    Firebase Authentication for mobile app users
+  </Card>
+  <Card title="Chatbot AI" icon="robot">
+    Natural language appointment booking assistant
+  </Card>
+  <Card title="Apache Superset" icon="chart-line">
+    Analytics and reporting dashboard
+  </Card>
+  <Card title="OAuth Providers" icon="lock">
+    Google and Facebook social login
+  </Card>
+</CardGroup>
+
+### Superset Integration
+
+The system provides guest tokens for embedded analytics:
+
+```php app/Http/Controllers/SupersetController.php
+Route::get('/preset-token', [SupersetController::class, 'getGuestToken']);
+```
+
+<Note>
+  See the [Database Schema](/concepts/database) section for detailed information about data models and relationships.
+</Note>
+
+## Error Handling
+
+The API uses consistent error response formats:
+
+```json Response Format
+{
+  "message": "Error description",
+  "errors": {
+    "field": ["Validation error details"]
+  }
+}
+```
+
+**HTTP Status Codes:**
+- `200` - Success
+- `201` - Resource created
+- `401` - Unauthorized (invalid/missing token)
+- `403` - Forbidden (insufficient permissions)
+- `404` - Resource not found
+- `422` - Validation error
+- `500` - Server error
+
+## Performance Considerations
+
+<AccordionGroup>
+  <Accordion title="Database Connection Pooling">
+    Oracle connections are managed through Laravel's connection pooling with configurable timeout and retry logic.
+  </Accordion>
+  
+  <Accordion title="API Rate Limiting">
+    Throttling middleware prevents abuse:
+    ```php
+    'throttle:api' => 60 requests per minute per IP
+    ```
+  </Accordion>
+  
+  <Accordion title="Eager Loading">
+    Related models are eager-loaded to prevent N+1 queries:
+    ```php
+    $citas = Cita::with(['medico.usuario', 'paciente'])->get();
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Security Features
+
+- **CSRF Protection**: Enabled for web routes (disabled for API)
+- **SQL Injection Prevention**: Eloquent ORM parameterized queries
+- **XSS Protection**: Input sanitization via middleware
+- **Token-based Auth**: Stateless authentication with Sanctum
+- **HTTPS Enforcement**: Recommended for production deployments
+
+<Warning>
+  Ensure all environment variables (especially `DB_PASSWORD`, `FIREBASE_CREDENTIALS`) are properly secured and never committed to version control.
+</Warning>

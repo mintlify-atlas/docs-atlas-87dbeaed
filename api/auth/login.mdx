@@ -1,0 +1,131 @@
+---
+title: 'Login User'
+api: 'POST /api/login'
+description: 'Authenticate a user and receive an access token'
+---
+
+## Endpoint
+
+<ParamField path="method" type="string" required>
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  /api/login
+</ParamField>
+
+## Authentication
+
+This endpoint is public and does not require authentication.
+
+## Request Body
+
+<ParamField body="email" type="string" required>
+  User's registered email address
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  Success message indicating login status
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The authenticated user object (password fields are hidden)
+  
+  <ResponseField name="ID_USUARIO" type="integer">
+    Unique user identifier
+  </ResponseField>
+  
+  <ResponseField name="NOMBRE" type="string">
+    User's full name
+  </ResponseField>
+  
+  <ResponseField name="CORREO" type="string">
+    User's email address
+  </ResponseField>
+  
+  <ResponseField name="ACTIVO" type="string">
+    User account status
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  Authentication token for subsequent API requests (Sanctum token)
+</ResponseField>
+
+## Example Request
+
+```bash cURL
+curl -X POST https://api.vitafem.com/api/login \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "email": "jane.doe@example.com",
+    "password": "securePassword123"
+  }'
+```
+
+```json Request Body
+{
+  "email": "jane.doe@example.com",
+  "password": "securePassword123"
+}
+```
+
+## Example Response
+
+```json 200 Success
+{
+  "message": "Login exitoso",
+  "user": {
+    "ID_USUARIO": 123,
+    "NOMBRE": "Jane Doe",
+    "CORREO": "jane.doe@example.com",
+    "ACTIVO": "1",
+    "created_at": "2026-03-01T10:30:00.000000Z",
+    "updated_at": "2026-03-04T10:30:00.000000Z"
+  },
+  "token": "2|XyZ1234567890AbCdEfGhIjKlMnOpQrStUv"
+}
+```
+
+## Error Responses
+
+```json 401 Invalid Credentials
+{
+  "message": "Credenciales incorrectas"
+}
+```
+
+```json 404 User Not Found
+{
+  "message": "Usuario no encontrado"
+}
+```
+
+```json 422 Validation Error
+{
+  "message": "The email field is required. (and 1 more error)",
+  "errors": {
+    "email": [
+      "The email field is required."
+    ],
+    "password": [
+      "The password field is required."
+    ]
+  }
+}
+```
+
+## Notes
+
+- The authentication token should be stored securely on the client side
+- Include the token in the `Authorization` header as `Bearer {token}` for protected endpoints
+- Password verification uses bcrypt hashing for security
+- The system logs login attempts for security monitoring
+- Password and PASSWORD fields are automatically hidden in the response
