@@ -1,0 +1,195 @@
+{
+  "projectType": "api-service",
+  "projectName": "VitaFem Backend",
+  "projectDescription": "Healthcare API for managing medical appointments, patient records, consultations, and prescriptions with Oracle database integration.",
+  "theme": "almond",
+  "primaryColor": "#00A896",
+  "lightColor": "#7BE495",
+  "darkColor": "#028090",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/database",
+              "concepts/roles-permissions"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/setup",
+              "guides/deployment",
+              "guides/oracle-configuration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/register",
+              "api/auth/login",
+              "api/auth/logout",
+              "api/auth/social-login",
+              "api/auth/firebase"
+            ]
+          },
+          {
+            "group": "Patients",
+            "pages": [
+              "api/patients/list",
+              "api/patients/create",
+              "api/patients/profile",
+              "api/patients/update-profile",
+              "api/patients/medical-history"
+            ]
+          },
+          {
+            "group": "Appointments",
+            "pages": [
+              "api/appointments/list",
+              "api/appointments/create",
+              "api/appointments/available-slots",
+              "api/appointments/my-appointments",
+              "api/appointments/update-status"
+            ]
+          },
+          {
+            "group": "Doctors",
+            "pages": [
+              "api/doctors/list",
+              "api/doctors/create",
+              "api/doctors/appointments",
+              "api/doctors/schedule",
+              "api/doctors/update-schedule"
+            ]
+          },
+          {
+            "group": "Medical Consultations",
+            "pages": [
+              "api/consultations/create",
+              "api/consultations/prescriptions",
+              "api/consultations/patient-history"
+            ]
+          },
+          {
+            "group": "Pets",
+            "pages": [
+              "api/pets/list",
+              "api/pets/create",
+              "api/pets/update",
+              "api/pets/delete"
+            ]
+          },
+          {
+            "group": "Products",
+            "pages": [
+              "api/products/list",
+              "api/products/create",
+              "api/products/update",
+              "api/products/delete"
+            ]
+          },
+          {
+            "group": "Users & Admin",
+            "pages": [
+              "api/users/list",
+              "api/users/create",
+              "api/users/update",
+              "api/users/delete",
+              "api/users/profile"
+            ]
+          },
+          {
+            "group": "Chatbot",
+            "pages": [
+              "api/chatbot/message",
+              "api/chatbot/create-appointment"
+            ]
+          },
+          {
+            "group": "Analytics",
+            "pages": [
+              "api/analytics/superset-token"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Patient management with medical records and profiles",
+    "Doctor scheduling with availability management",
+    "Appointment booking with time slot validation",
+    "Medical consultations with prescriptions and treatment records",
+    "Pet cardex for veterinary care",
+    "Multi-authentication (email, Firebase, social login)",
+    "Role-based access control (admin, doctor, patient)",
+    "Email notifications for appointments",
+    "Chatbot for appointment assistance",
+    "Oracle database integration with Yajra OCI8",
+    "Analytics integration with Apache Superset"
+  ],
+  "publicApiSurface": [
+    "POST /api/register",
+    "POST /api/login",
+    "POST /api/logout",
+    "GET /api/me",
+    "GET /api/users",
+    "POST /api/admin/users",
+    "PUT /api/users/{id}",
+    "DELETE /api/users/{id}",
+    "GET /api/pacientes",
+    "POST /api/pacientes",
+    "POST /api/pacientes/perfil",
+    "GET /api/pacientes/perfil/{id_usuario}",
+    "GET /api/medicos",
+    "POST /api/admin/medicos",
+    "GET /api/medico/{id_usuario}/citas",
+    "GET /api/medico/{id_usuario}/horarios",
+    "PUT /api/medico/{id_usuario}/horarios",
+    "GET /api/medico/paciente/{id_paciente}/historial",
+    "PUT /api/medico/citas/{id}/atender",
+    "GET /api/citas",
+    "POST /api/citas",
+    "DELETE /api/citas/{id}",
+    "GET /api/pacientes/{id_usuario}/citas",
+    "GET /api/admin/citas",
+    "PUT /api/admin/citas/{id}/estado",
+    "GET /api/horarios-disponibles",
+    "GET /api/appointments",
+    "POST /api/appointments",
+    "POST /api/appointments/{id}/complete",
+    "GET /api/available-slots",
+    "GET /api/pets",
+    "POST /api/pets",
+    "PUT /api/pets/{id}",
+    "DELETE /api/pets/{id}",
+    "GET /api/productos",
+    "POST /api/productos",
+    "PUT /api/productos/{id}",
+    "DELETE /api/productos/{id}",
+    "POST /api/chatbot/message",
+    "POST /api/chatbot/cita",
+    "GET /api/preset-token",
+    "GET /api/auth/{provider}/redirect",
+    "GET /api/auth/{provider}/callback",
+    "POST /api/auth/firebase"
+  ]
+}
